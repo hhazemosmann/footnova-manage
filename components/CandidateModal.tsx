@@ -69,6 +69,24 @@ export default function CandidateModal() {
           Adding to <strong>{job.title}</strong> · {job.location}
         </div>
 
+        {s.error && (
+          <p
+            role="alert"
+            style={{
+              margin: 0,
+              background: '#FFF0EF',
+              border: '1px solid #C1443D',
+              borderLeft: '4px solid #C1443D',
+              borderRadius: 6,
+              padding: '10px 12px',
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              color: '#101B3A',
+            }}
+          >
+            {s.error}
+          </p>
+        )}
         <Input
           label="Full name"
           placeholder="e.g. Nour Abdelrahman"

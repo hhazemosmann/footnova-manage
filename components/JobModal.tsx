@@ -42,6 +42,24 @@ export default function JobModal() {
           width: 'min(440px, 100%)',
         }}
       >
+        {s.error && (
+          <p
+            role="alert"
+            style={{
+              margin: 0,
+              background: '#FFF0EF',
+              border: '1px solid #C1443D',
+              borderLeft: '4px solid #C1443D',
+              borderRadius: 6,
+              padding: '10px 12px',
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              color: '#101B3A',
+            }}
+          >
+            {s.error}
+          </p>
+        )}
         <Input
           label="Job title"
           placeholder="e.g. Academy Goalkeeping Coach"

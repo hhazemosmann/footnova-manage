@@ -120,9 +120,26 @@ interface ProfileRow {
 export async function loadAll(): Promise<void> {
   const db = supabase();
 
-  const { data: auth } = await db.auth.getUser();
-  const userId = auth.user?.id ?? null;
-  const userEmail = auth.user?.email ?? '';
+  /* A stale cookie can still satisfy PostgREST (it only checks the signature)
+   * while the session behind it is gone — revoked elsewhere, password
+   * changed, account removed. That left the UI looking signed in while every
+   * write failed with "Not signed in.". Treat it as signed out instead. */
+  const { data: auth, error: authError } = await db.auth.getUser();
+  if (authError || !auth.user) {
+    try {
+      await db.auth.signOut();
+    } catch {
+      /* the session is already gone; the local cookie is cleared regardless */
+    }
+    setState({
+      loading: false,
+      userId: null,
+      error: 'Your session has expired. Please sign in again.',
+    });
+    return;
+  }
+  const userId = auth.user.id;
+  const userEmail = auth.user.email ?? '';
 
   const [jobsRes, candsRes, notesRes, profilesRes, settingsRes] = await Promise.all([
     db.from('jobs').select('*').order('posted_on', { ascending: false }),
@@ -224,7 +241,9 @@ export async function loadAll(): Promise<void> {
       ? profiles.get(userId) || userEmail.split('@')[0] || 'Signed in'
       : '',
     loading: false,
-    error: null,
+    /* Deliberately does NOT clear `error`: a mutation may have set a partial
+     * -success notice (candidate saved, CV failed) just before this reload,
+     * and it must survive. withBusy clears the error before every write. */
     jobId: state.jobId ?? jobs.find((j) => !j.archivedAt)?.id ?? jobs[0]?.id ?? null,
   });
 }
@@ -234,6 +253,56 @@ export function resetStore() {
   emit();
 }
 
+/* Supabase returns plain objects (PostgrestError, StorageError), not Error
+ * instances, so `String(e)` renders them as "[object Object]". Pull out
+ * whatever human-readable text is actually there. */
+/* The database enforces both of these, but a raw constraint violation is a
+ * poor thing to show someone mid-typing. Catch them here with plain wording,
+ * and fix the one that is safe to fix automatically. */
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+function cleanEmail(raw: string | undefined): string | null {
+  const v = (raw ?? '').trim();
+  if (!v) return null;
+  if (!EMAIL_RE.test(v)) {
+    throw new Error(
+      'That email address does not look right: "' + v + '". Use the form name@example.com, or leave it blank.'
+    );
+  }
+  return v;
+}
+
+/* A pasted LinkedIn URL usually arrives as "linkedin.com/in/name" with no
+ * scheme, which the linkedin_url check constraint rejects. Add it rather
+ * than making someone retype the line. */
+function cleanUrl(raw: string | undefined): string | null {
+  const v = (raw ?? '').trim();
+  if (!v) return null;
+  return /^https?:\/\//i.test(v) ? v : 'https://' + v.replace(/^\/+/, '');
+}
+
+export function errorMessage(e: unknown): string {
+  if (typeof e === 'string') return e;
+  if (e instanceof Error && e.message) return e.message;
+  if (e && typeof e === 'object') {
+    const o = e as Record<string, unknown>;
+    const parts = [o.message, o.error_description, o.error, o.details, o.hint]
+      .filter((v): v is string => typeof v === 'string' && v.trim() !== '');
+    if (parts.length) {
+      const seen = new Set<string>();
+      const unique = parts.filter((v) => (seen.has(v) ? false : (seen.add(v), true)));
+      const code = typeof o.code === 'string' && o.code ? ' (' + o.code + ')' : '';
+      return unique.join(' — ') + code;
+    }
+    try {
+      return JSON.stringify(e);
+    } catch {
+      /* fall through */
+    }
+  }
+  return 'Something went wrong. Check the browser console for details.';
+}
+
 async function withBusy<T>(fn: () => Promise<T>): Promise<T | null> {
   setState({ busy: true, error: null });
   try {
@@ -241,7 +310,7 @@ async function withBusy<T>(fn: () => Promise<T>): Promise<T | null> {
     await loadAll();
     return result;
   } catch (e) {
-    setState({ error: e instanceof Error ? e.message : String(e) });
+    setState({ error: errorMessage(e) });
     return null;
   } finally {
     setState({ busy: false });
@@ -435,7 +504,7 @@ export function setStage(id: string, stage: string) {
 }
 
 export function setLinkedinUrl(id: string, url: string) {
-  return updateCandidate(id, { linkedin_url: url.trim() === '' ? null : url.trim() });
+  return updateCandidate(id, { linkedin_url: cleanUrl(url) });
 }
 
 export function addNote(cand: Candidate) {
@@ -512,13 +581,34 @@ function cvPath(candidateId: string, file: File): string {
   return `candidates/${candidateId}/${rand}.${ext}`;
 }
 
+/* Derive the MIME type from the extension rather than trusting file.type.
+ * Browsers report '' for a .docx on machines without Office registered, and
+ * both the bucket's allowed_mime_types and the candidates_cv_mime check
+ * constraint accept only these two exact strings — so an empty type made the
+ * upload fail with an unreadable error. */
+const PDF_MIME = 'application/pdf';
+const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+
+function cvMimeType(file: File): string {
+  if (file.name.toLowerCase().endsWith('.docx')) return DOCX_MIME;
+  if (file.name.toLowerCase().endsWith('.pdf')) return PDF_MIME;
+  return file.type === DOCX_MIME || file.type === PDF_MIME ? file.type : PDF_MIME;
+}
+
 async function uploadCvFile(candidateId: string, file: File, userId: string) {
   const db = supabase();
   const path = cvPath(candidateId, file);
+  const mime = cvMimeType(file);
+
+  /* supabase-js sends the Blob inside FormData, so the server reads the
+   * file's OWN type and ignores contentType. Re-wrap it, otherwise a browser
+   * that reports '' arrives as application/octet-stream and the bucket
+   * rejects it with a 415. */
+  const typed = file.type === mime ? file : new File([file], file.name, { type: mime });
 
   const { error: upErr } = await db.storage
     .from(CV_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
+    .upload(path, typed, { contentType: mime, upsert: false });
   if (upErr) throw upErr;
 
   /* Find the previous file before overwriting the pointer, so it can be
@@ -534,7 +624,7 @@ async function uploadCvFile(candidateId: string, file: File, userId: string) {
     .update({
       cv_object_path: path,
       cv_file_name: file.name,
-      cv_mime_type: file.type,
+      cv_mime_type: mime,
       cv_size_bytes: file.size,
       cv_uploaded_at: new Date().toISOString(),
       cv_uploaded_by: userId,
@@ -607,8 +697,8 @@ export function submitCand(): Promise<string | null> {
       .insert({
         job_id: jobId,
         full_name: f.name!.trim(),
-        email: f.email?.trim() || null,
-        linkedin_url: f.linkedinUrl?.trim() || null,
+        email: cleanEmail(f.email),
+        linkedin_url: cleanUrl(f.linkedinUrl),
         source: (f.source as Source) || 'Manual entry',
         stage: (f.stage as Stage) || 'Applied',
         rating: f.rating ?? 3,
@@ -619,9 +709,25 @@ export function submitCand(): Promise<string | null> {
       .single();
     if (error) throw error;
 
-    if (f.cvFile) await uploadCvFile(data.id, f.cvFile, userId);
+    /* The candidate row already exists at this point. If the CV upload
+     * fails, keep the person and report only the file problem — aborting
+     * here left an invisible row behind and a retry made duplicates. */
+    let cvProblem: string | null = null;
+    if (f.cvFile) {
+      try {
+        await uploadCvFile(data.id, f.cvFile, userId);
+      } catch (e) {
+        cvProblem = errorMessage(e);
+      }
+    }
 
-    setState({ modal: null, form: {} });
+    setState({
+      modal: null,
+      form: {},
+      error: cvProblem
+        ? f.name!.trim() + ' was saved, but the CV did not upload: ' + cvProblem
+        : null,
+    });
     return data.id;
   });
 }
