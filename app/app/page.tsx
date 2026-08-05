@@ -21,7 +21,7 @@ export default function AppLoginPage() {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const result = signIn(username, password, 'app');
+    const result = signIn(username, password);
     if (!result.ok) {
       setError(result.error);
       return;

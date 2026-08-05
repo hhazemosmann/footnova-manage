@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "supabase:types": "supabase gen types typescript --project-id veaazwasmtxanwpmubsu > lib/database.types.ts",
+    "supabase:test": "supabase test db --linked"
   },
   "dependencies": {
     "next": "^15.5.4",

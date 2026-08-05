@@ -32,7 +32,7 @@ const NAV = [
 
 export default function AppShellLayout({ children }: { children: React.ReactNode }) {
   return (
-    <RequireAuth realm="app">
+    <RequireAuth>
       <Shell>{children}</Shell>
     </RequireAuth>
   );
