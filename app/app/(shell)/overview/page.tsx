@@ -5,7 +5,7 @@
 
 import { useRouter } from 'next/navigation';
 import { ACCENT_COLOR, FUNNEL_MODE, SHOW_CONVERSION } from '@/lib/design-props';
-import { allCands, segments, selectJob } from '@/lib/store';
+import { jobLiveCands, liveCands, liveJobs, segments, selectJob } from '@/lib/store';
 import { useAppState } from '@/lib/use-store';
 
 const mono = "'IBM Plex Mono',monospace";
@@ -23,8 +23,9 @@ export default function OverviewPage() {
   const s = useAppState();
   const router = useRouter();
 
-  const all = allCands(s);
-  const openJobs = s.jobs.filter((j) => j.status === 'Open');
+  /* Archived jobs and candidates are excluded from every live figure. */
+  const all = liveCands(s);
+  const openJobs = liveJobs(s).filter((j) => j.status === 'Open');
   const shortAll = all.filter((c) => c.short);
 
   const metrics = [
@@ -75,7 +76,7 @@ export default function OverviewPage() {
   });
 
   /* Source: openJob(id) — select + reset filters, then navigate. */
-  function openJob(id: number) {
+  function openJob(id: string) {
     selectJob(id);
     router.push('/app/jobs/' + id);
   }
@@ -84,7 +85,7 @@ export default function OverviewPage() {
     id: j.id,
     title: j.title,
     meta: 'Posted ' + j.posted + ' · ' + j.location,
-    count: j.cands.length,
+    count: jobLiveCands(j).length,
     segments: segments(j),
   }));
 

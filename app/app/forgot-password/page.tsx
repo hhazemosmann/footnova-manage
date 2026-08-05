@@ -1,19 +1,27 @@
 'use client';
 
-/* Scaffolding added by the conversion. Sends nothing. */
+/* Scaffolding added by the conversion. Wired to Supabase's own password
+ * reset flow. The confirmation is deliberately the same whether or not the
+ * account exists, so this page cannot be used to discover addresses. */
 
 import { FormEvent, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { requestPasswordReset } from '@/lib/auth-stub';
+import { supabase } from '@/lib/supabase/client';
 
 export default function AppForgotPasswordPage() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setMessage(await requestPasswordReset(username));
+    setBusy(true);
+    await supabase().auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: typeof window !== 'undefined' ? window.location.origin + '/app' : undefined,
+    });
+    setBusy(false);
+    setMessage('If that account exists, a reset link has been sent.');
   }
 
   return (
@@ -29,20 +37,22 @@ export default function AppForgotPasswordPage() {
 
         <div>
           <h1 className="sf-title">Reset password</h1>
-          <p className="sf-lede">Enter your username and we&rsquo;ll send a reset link.</p>
+          <p className="sf-lede">Enter your email address and we&rsquo;ll send a reset link.</p>
         </div>
 
         <form className="sf-form" onSubmit={onSubmit}>
           <div className="sf-field">
-            <label className="sf-label" htmlFor="app-reset-username">
-              Username
+            <label className="sf-label" htmlFor="app-reset-email">
+              Email
             </label>
             <input
-              id="app-reset-username"
+              id="app-reset-email"
               className="sf-input"
+              type="email"
               autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
 
@@ -52,8 +62,8 @@ export default function AppForgotPasswordPage() {
             </p>
           )}
 
-          <button className="sf-btn" type="submit">
-            Send reset link
+          <button className="sf-btn" type="submit" disabled={busy}>
+            {busy ? 'Sending…' : 'Send reset link'}
           </button>
         </form>
 

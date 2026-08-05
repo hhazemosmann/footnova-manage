@@ -27,9 +27,9 @@ export default function JobModal() {
   if (s.modal !== 'job') return null;
 
   /* Source set `screen:'job'` + the new jobId; that becomes a route push. */
-  function onSubmit() {
-    const newId = submitJob();
-    if (newId !== null) router.push('/app/jobs/' + newId);
+  async function onSubmit() {
+    const newId = await submitJob();
+    if (newId) router.push('/app/jobs/' + newId);
   }
 
   return (
@@ -60,8 +60,12 @@ export default function JobModal() {
           }}
         >
           Description
+          {/* The design collected a description and threw it away on submit.
+              It is a real column now. */}
           <textarea
             placeholder="Role summary, requirements, contract length…"
+            value={s.form.description ?? ''}
+            onChange={(e) => setFormField('description', e.target.value)}
             style={{
               fontFamily: "'Titillium Web',sans-serif",
               fontSize: 15,
@@ -110,8 +114,8 @@ export default function JobModal() {
           <Button variant="secondary" size="sm" onClick={closeModals}>
             Cancel
           </Button>
-          <Button size="sm" onClick={onSubmit}>
-            Post Job
+          <Button size="sm" disabled={s.busy} onClick={() => void onSubmit()}>
+            {s.busy ? 'Saving…' : 'Post Job'}
           </Button>
         </div>
       </div>

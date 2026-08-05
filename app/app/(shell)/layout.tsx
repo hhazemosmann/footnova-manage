@@ -16,8 +16,8 @@ import CandidatePanel from '@/components/CandidatePanel';
 import JobModal from '@/components/JobModal';
 import CandidateModal from '@/components/CandidateModal';
 import { Button } from '@/components/ds';
-import { signOut } from '@/lib/auth-stub';
-import { allCands, openJobModal, setSearch } from '@/lib/store';
+import { supabase } from '@/lib/supabase/client';
+import { initials, liveCands, liveJobs, openJobModal, setSearch } from '@/lib/store';
 import { useAppState } from '@/lib/use-store';
 
 const mono = "'IBM Plex Mono',monospace";
@@ -27,6 +27,7 @@ const NAV = [
   { key: 'overview', label: 'Overview', icon: '⌂', href: '/app/overview' },
   { key: 'jobs', label: 'Jobs', icon: '▤', href: '/app/jobs' },
   { key: 'shortlist', label: 'Shortlist', icon: '●', href: '/app/shortlist' },
+  { key: 'archive', label: 'Archive', icon: '⌸', href: '/app/archive' },
   { key: 'settings', label: 'Settings', icon: '◧', href: '/app/settings' },
 ];
 
@@ -44,8 +45,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const all = allCands(s);
+  const all = liveCands(s);
   const shortAll = all.filter((c) => c.short);
+  const archivedCount =
+    s.jobs.filter((j) => j.archivedAt).length +
+    s.jobs.filter((j) => !j.archivedAt).flatMap((j) => j.cands).filter((c) => c.archivedAt).length;
 
   /* Source: active = screen===key || (key==='jobs' && screen==='job') —
    * i.e. Jobs stays lit while a job-detail view is open. */
@@ -54,8 +58,9 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   const counts: Record<string, string> = {
     overview: '',
-    jobs: String(s.jobs.length),
+    jobs: String(liveJobs(s).length),
     shortlist: String(shortAll.length),
+    archive: archivedCount ? String(archivedCount) : '',
     settings: '',
   };
 
@@ -211,18 +216,18 @@ function Shell({ children }: { children: React.ReactNode }) {
               flex: 'none',
             }}
           >
-            HK
+            {s.userName ? initials(s.userName) : '—'}
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Hazem K.</span>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{s.userName || 'Signed in'}</span>
             <span style={{ fontSize: 11, color: '#A6C5D7' }}>Talent Lead</span>
           </div>
           {/* Scaffold addition — the source had no sign-out control. */}
           <button
             type="button"
             className="fn-reset-button"
-            onClick={() => {
-              signOut();
+            onClick={async () => {
+              await supabase().auth.signOut();
               router.replace('/app');
             }}
             style={{
@@ -338,7 +343,28 @@ function Shell({ children }: { children: React.ReactNode }) {
           className="fn-page"
           style={{ flex: 1, overflow: 'auto', padding: '24px 28px 40px', minWidth: 0 }}
         >
-          {children}
+          {s.error && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: 16,
+                background: '#FFFFFF',
+                border: '1px solid #C1443D',
+                borderLeft: '4px solid #C1443D',
+                borderRadius: 8,
+                padding: '12px 16px',
+                fontSize: 13.5,
+                color: '#101B3A',
+              }}
+            >
+              {s.error}
+            </div>
+          )}
+          {s.loading ? (
+            <p style={{ fontSize: 14, color: '#2C3A5E' }}>Loading…</p>
+          ) : (
+            children
+          )}
         </div>
       </main>
 

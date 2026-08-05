@@ -4,7 +4,7 @@
  * navigates, which needs the router. */
 
 import { ZEBRA_ROWS } from './design-props';
-import { Candidate, TONE } from './demo-data';
+import { Candidate, TONE } from './types';
 import { CandidateWithJob, avatar, initials, stars } from './store';
 
 export interface Row {
@@ -27,7 +27,9 @@ export function buildRow(c: Candidate | CandidateWithJob, i: number): Row {
     avatarBg: avatar(c.id),
     stars: stars(c.rating),
     tone: TONE[c.stage],
-    cv: 'CV.pdf ↗',
+    /* The source showed a fixed 'CV.pdf' against every row. Now that files
+     * are real, show the actual filename, or say so when there is none. */
+    cv: c.cv ? c.cv.fileName + ' ↗' : 'No CV',
     rowBg: ZEBRA_ROWS !== false && i % 2 ? '#F7F9FC' : '#FFFFFF',
     shortLabel: c.short ? 'Shortlisted' : 'Shortlist',
   };

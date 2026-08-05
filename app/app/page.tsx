@@ -1,32 +1,46 @@
 'use client';
 
-/* APP LOGIN — scaffolding added by the conversion. No counterpart in the
- * source HTML; built only from the source's own tokens. */
+/* APP LOGIN — real Supabase Auth (email + password).
+ *
+ * Scaffolding added by the conversion; no counterpart in the source HTML, so
+ * it is built only from the source's own tokens. Registration is invitation
+ * only: teammates are added from the Supabase dashboard, so there is no
+ * sign-up link here by design. */
 
 import { FormEvent, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { restoreSession, signIn } from '@/lib/auth-stub';
+import { supabase } from '@/lib/supabase/client';
 
 export default function AppLoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   /* A signed-in visitor landing here goes straight into the app. */
   useEffect(() => {
-    if (restoreSession()) router.replace('/app/overview');
+    supabase()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (data.session) router.replace('/app/overview');
+      });
   }, [router]);
 
-  function onSubmit(e: FormEvent) {
+  async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const result = signIn(username, password);
-    if (!result.ok) {
-      setError(result.error);
+    setBusy(true);
+    setError('');
+    const { error: signInError } = await supabase().auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    setBusy(false);
+    if (signInError) {
+      setError(signInError.message);
       return;
     }
-    setError('');
     router.replace('/app/overview');
   }
 
@@ -48,15 +62,17 @@ export default function AppLoginPage() {
 
         <form className="sf-form" onSubmit={onSubmit}>
           <div className="sf-field">
-            <label className="sf-label" htmlFor="app-username">
-              Username
+            <label className="sf-label" htmlFor="app-email">
+              Email
             </label>
             <input
-              id="app-username"
+              id="app-email"
               className="sf-input"
+              type="email"
               autoComplete="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
           </div>
 
@@ -71,6 +87,7 @@ export default function AppLoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
 
@@ -80,8 +97,8 @@ export default function AppLoginPage() {
             </p>
           )}
 
-          <button className="sf-btn" type="submit">
-            Sign in
+          <button className="sf-btn" type="submit" disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
           </button>
 
           <button
@@ -94,9 +111,7 @@ export default function AppLoginPage() {
         </form>
 
         <p className="sf-hint">
-          Stub sign-in — no backend yet.
-          <br />
-          hazem / footnova
+          Accounts are added from the Supabase dashboard — there is no public sign-up.
         </p>
       </div>
     </main>

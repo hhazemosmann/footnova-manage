@@ -8,25 +8,44 @@
  * /app/jobs/[jobId] syncs it on mount, so the value is correct on a direct
  * load or refresh. Its only trigger lives on the job-detail view. */
 
+import { useState } from 'react';
 import { closeModals, currentJob, setFormField, submitCand } from '@/lib/store';
-import { STAGES } from '@/lib/demo-data';
+import { CV_ACCEPT, CV_MAX_BYTES, SOURCES, STAGES } from '@/lib/types';
+import { formatFileSize } from '@/lib/format';
 import { useAppState } from '@/lib/use-store';
 import { Button, Dialog, Input, Select } from '@/components/ds';
 
-const SOURCE_OPTIONS = [
-  'Manual entry',
-  'Referral',
-  'Direct application',
-  'Agency',
-  'Scouting network',
-];
-
 export default function CandidateModal() {
   const s = useAppState();
+  const [fileError, setFileError] = useState('');
 
   if (s.modal !== 'cand') return null;
 
   const job = currentJob(s);
+  if (!job) return null;
+
+  const cvFile = s.form.cvFile ?? null;
+
+  /* The bucket enforces type and size too — this is the friendly first pass
+     so a bad file never leaves the browser. */
+  function pickFile(file: File | null) {
+    setFileError('');
+    if (!file) {
+      setFormField('cvFile', null);
+      return;
+    }
+    const name = file.name.toLowerCase();
+    const okType = name.endsWith('.pdf') || name.endsWith('.docx');
+    if (!okType) {
+      setFileError('Only PDF and DOCX files are accepted.');
+      return;
+    }
+    if (file.size > CV_MAX_BYTES) {
+      setFileError('That file is ' + formatFileSize(file.size) + ' — the limit is 10 MB.');
+      return;
+    }
+    setFormField('cvFile', file);
+  }
 
   return (
     <Dialog title="Add Candidate" onClose={closeModals}>
@@ -62,6 +81,16 @@ export default function CandidateModal() {
           value={s.form.email ?? ''}
           onChange={(e) => setFormField('email', e.target.value)}
         />
+        {/* LinkedIn URL — the design showed a LinkedIn link in the candidate
+            drawer but had nowhere to enter one. Pasted by hand; nothing is
+            scraped or fetched from it. */}
+        <Input
+          label="LinkedIn profile URL"
+          placeholder="https://www.linkedin.com/in/…"
+          type="url"
+          value={s.form.linkedinUrl ?? ''}
+          onChange={(e) => setFormField('linkedinUrl', e.target.value)}
+        />
 
         <div
           style={{
@@ -72,7 +101,7 @@ export default function CandidateModal() {
         >
           <Select
             label="Source"
-            options={SOURCE_OPTIONS}
+            options={SOURCES}
             value={s.form.source}
             onChange={(e) => setFormField('source', e.target.value)}
           />
@@ -86,7 +115,7 @@ export default function CandidateModal() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#2C3A5E' }}>CV upload</span>
-          <div
+          <label
             style={{
               border: '1px dashed #A6C5D7',
               borderRadius: 8,
@@ -96,11 +125,32 @@ export default function CandidateModal() {
               display: 'flex',
               flexDirection: 'column',
               gap: 4,
+              cursor: 'pointer',
+            }}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              pickFile(e.dataTransfer.files?.[0] ?? null);
             }}
           >
-            <span style={{ fontSize: '13.5px', fontWeight: 600 }}>Drop CV here or browse</span>
-            <span style={{ fontSize: '11.5px', color: '#2C3A5E' }}>PDF or DOCX · max 10 MB</span>
-          </div>
+            <span style={{ fontSize: '13.5px', fontWeight: 600 }}>
+              {cvFile ? cvFile.name : 'Drop CV here or browse'}
+            </span>
+            <span style={{ fontSize: '11.5px', color: '#2C3A5E' }}>
+              {cvFile ? formatFileSize(cvFile.size) : 'PDF or DOCX · max 10 MB'}
+            </span>
+            <input
+              type="file"
+              accept={CV_ACCEPT}
+              className="fn-visually-hidden"
+              onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+            />
+          </label>
+          {fileError && (
+            <span role="alert" style={{ fontSize: 12, color: '#C1443D', fontWeight: 600 }}>
+              {fileError}
+            </span>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
@@ -140,8 +190,8 @@ export default function CandidateModal() {
           <Button variant="secondary" size="sm" onClick={closeModals}>
             Cancel
           </Button>
-          <Button size="sm" onClick={submitCand}>
-            Add Candidate
+          <Button size="sm" disabled={s.busy} onClick={() => void submitCand()}>
+            {s.busy ? 'Saving…' : 'Add Candidate'}
           </Button>
         </div>
       </div>

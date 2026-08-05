@@ -3,7 +3,15 @@
 /* Jobs — source view `screen:'jobs'` / `<sc-if value="{{ isJobs }}">`. */
 
 import { useRouter } from 'next/navigation';
-import { allCands, chip, segments, selectJob, setStatusFilter } from '@/lib/store';
+import {
+  chip,
+  jobLiveCands,
+  liveCands,
+  liveJobs,
+  segments,
+  selectJob,
+  setStatusFilter,
+} from '@/lib/store';
 import { useAppState } from '@/lib/use-store';
 import { Badge } from '@/components/ds';
 
@@ -13,16 +21,17 @@ export default function JobsPage() {
   const s = useAppState();
   const router = useRouter();
 
-  const all = allCands(s);
+  const all = liveCands(s);
 
   /* Source: the topbar search filters job titles on this view. */
   const q = s.search.trim().toLowerCase();
-  const visibleJobs = s.jobs.filter(
+  /* Archived jobs live only in the Archive tab. */
+  const visibleJobs = liveJobs(s).filter(
     (j) =>
       (s.statusF === 'All' || j.status === s.statusF) && (!q || j.title.toLowerCase().includes(q))
   );
 
-  function openJob(id: number) {
+  function openJob(id: string) {
     selectJob(id);
     router.push('/app/jobs/' + id);
   }
@@ -197,7 +206,7 @@ export default function JobsPage() {
               >
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontFamily: mono, fontSize: 19, fontWeight: 600 }}>
-                    {j.cands.length}
+                    {jobLiveCands(j).length}
                   </span>
                   <span style={{ fontSize: 10, letterSpacing: '0.08em', color: '#2C3A5E' }}>
                     APPLICANTS
@@ -207,7 +216,7 @@ export default function JobsPage() {
                   <span
                     style={{ fontFamily: mono, fontSize: 19, fontWeight: 600, color: '#0F52BA' }}
                   >
-                    {j.cands.filter((c) => c.short).length}
+                    {jobLiveCands(j).filter((c) => c.short).length}
                   </span>
                   <span style={{ fontSize: 10, letterSpacing: '0.08em', color: '#2C3A5E' }}>
                     SHORTLISTED
@@ -215,7 +224,7 @@ export default function JobsPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontFamily: mono, fontSize: 19, fontWeight: 600 }}>
-                    {j.cands.filter((c) => c.stage === 'Interview').length}
+                    {jobLiveCands(j).filter((c) => c.stage === 'Interview').length}
                   </span>
                   <span style={{ fontSize: 10, letterSpacing: '0.08em', color: '#2C3A5E' }}>
                     INTERVIEWS

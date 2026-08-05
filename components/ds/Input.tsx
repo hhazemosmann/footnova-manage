@@ -13,6 +13,7 @@ export default function Input({
   type = 'text',
   value,
   onChange,
+  onBlur,
   error,
   readOnly,
 }: {
@@ -21,6 +22,7 @@ export default function Input({
   type?: string;
   value?: string;
   onChange?: (e: ChangeEvent<HTMLInputElement>) => void;
+  onBlur?: () => void;
   error?: string;
   readOnly?: boolean;
 }) {
@@ -42,6 +44,7 @@ export default function Input({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
+        onBlur={onBlur}
         readOnly={readOnly}
         style={{
           fontFamily: 'var(--font-body)',

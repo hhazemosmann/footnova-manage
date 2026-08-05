@@ -1,8 +1,13 @@
 'use client';
 
-/* Settings — source view `screen:'settings'` / `<sc-if value="{{ isSettings }}">`. */
+/* Settings — source view `screen:'settings'` / `<sc-if value="{{ isSettings }}">`.
+ *
+ * Now persisted to the single app_settings row. The three toggles are stored
+ * but inert by explicit decision: nothing in this product sends email, and
+ * the 09:00 digest does nothing. */
 
-import { toggleSetting } from '@/lib/store';
+import { useEffect, useState } from 'react';
+import { updateSettings } from '@/lib/store';
 import { useAppState } from '@/lib/use-store';
 import { Input, Select, Switch } from '@/components/ds';
 
@@ -13,26 +18,37 @@ const PIPELINE_OPTIONS = [
 
 export default function SettingsPage() {
   const s = useAppState();
+  const settings = s.settings;
+
+  /* Local draft for the text field so typing does not fire a write per key. */
+  const [inbox, setInbox] = useState('');
+  useEffect(() => {
+    if (settings) setInbox(settings.careersInboxEmail);
+  }, [settings]);
+
+  if (!settings) {
+    return <p style={{ fontSize: 14, color: '#2C3A5E' }}>Settings unavailable.</p>;
+  }
 
   /* Source: the `toggles` array. */
   const toggles = [
     {
-      key: 'a' as const,
+      key: 'requireEmailOnNewCandidates' as const,
       label: 'Require email on new candidates',
       hint: 'Blocks saving a candidate without a contact email',
-      on: s.toggles.a,
+      on: settings.requireEmailOnNewCandidates,
     },
     {
-      key: 'b' as const,
+      key: 'emailOnShortlistAdd' as const,
       label: 'Email me on new shortlist adds',
       hint: 'Digest at 09:00 daily',
-      on: s.toggles.b,
+      on: settings.emailOnShortlistAdd,
     },
     {
-      key: 'c' as const,
+      key: 'requireCvBeforeInterview' as const,
       label: 'Require CV before interview stage',
       hint: 'Blocks stage change without an attached CV',
-      on: s.toggles.c,
+      on: settings.requireCvBeforeInterview,
     },
   ];
 
@@ -67,10 +83,23 @@ export default function SettingsPage() {
           gap: 18,
         }}
       >
-        {/* Source binds a literal value with no onChange — read-only in the
-            design, and read-only here until the database lands. */}
-        <Input label="Careers inbox" value="careers@footnova.com" readOnly onChange={() => {}} />
-        <Select label="Default pipeline" options={PIPELINE_OPTIONS} />
+        <Input
+          label="Careers inbox"
+          type="email"
+          value={inbox}
+          onChange={(e) => setInbox(e.target.value)}
+          onBlur={() => {
+            if (inbox !== settings.careersInboxEmail) {
+              void updateSettings({ careersInboxEmail: inbox });
+            }
+          }}
+        />
+        <Select
+          label="Default pipeline"
+          options={PIPELINE_OPTIONS}
+          value={settings.defaultPipeline}
+          onChange={(e) => void updateSettings({ defaultPipeline: e.target.value })}
+        />
 
         {toggles.map((t) => (
           <div
@@ -88,7 +117,11 @@ export default function SettingsPage() {
               <span style={{ fontSize: 14, fontWeight: 600 }}>{t.label}</span>
               <span style={{ fontSize: 12, color: '#2C3A5E' }}>{t.hint}</span>
             </div>
-            <Switch checked={t.on} ariaLabel={t.label} onChange={() => toggleSetting(t.key)} />
+            <Switch
+              checked={t.on}
+              ariaLabel={t.label}
+              onChange={(next) => void updateSettings({ [t.key]: next })}
+            />
           </div>
         ))}
       </div>

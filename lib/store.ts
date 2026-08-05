@@ -1,41 +1,60 @@
-/* Global mutable store — the routed replacement for the source's single
- * `DCLogic` component state. The source held everything in one component
- * because every view was mounted at once; under routing only one view is
- * mounted, so the state lives at module scope and the shell layout
- * subscribes to it once (see app/app/(shell)/layout.tsx).
+/* Global store, now backed by Supabase.
  *
- * The source's `screen` field is gone — the URL is the source of truth for
- * which view is showing. Everything else is carried across unchanged.
+ * The shape and the function names are unchanged from the in-memory version,
+ * so the ported view components did not need rewriting — what changed is that
+ * every mutation writes to Postgres and then refreshes.
+ *
+ * Refresh strategy: after any write, reload everything. The dataset is a few
+ * dozen rows, and a full reload removes a whole class of local/remote drift
+ * bugs. If this ever grows past a few hundred candidates, narrow it then.
+ *
+ * Attribution: every insert stamps created_by with the signed-in account,
+ * because the RLS insert policies require created_by = auth.uid(). The
+ * database rejects anything else.
  */
 
+import { supabase, CV_BUCKET } from './supabase/client';
+import { formatDate, relativeTime, todayIso } from './format';
+import type { TablesUpdate } from './database.types';
 import {
   AVA,
   Candidate,
+  CvFile,
   Job,
   Note,
   SEGC,
   STAGES,
+  Settings,
+  Source,
   Stage,
-  createInitialJobs,
-  makeCandidate,
-  nextUid,
-} from './demo-data';
+} from './types';
 
 export interface JobForm {
   title?: string;
   location?: string;
+  description?: string;
   source?: string;
   status?: string;
   name?: string;
   email?: string;
+  linkedinUrl?: string;
   stage?: string;
   rating?: number;
+  cvFile?: File | null;
 }
 
 export interface AppState {
   jobs: Job[];
-  jobId: number;
-  candId: number | null;
+  settings: Settings | null;
+  /* Signed-in account, needed for created_by on every insert. */
+  userId: string | null;
+  userName: string;
+  loading: boolean;
+  error: string | null;
+  busy: boolean;
+
+  jobId: string | null;
+  candId: string | null;
   modal: 'job' | 'cand' | null;
   stageF: string;
   ratingF: string;
@@ -43,15 +62,17 @@ export interface AppState {
   search: string;
   form: JobForm;
   note: string;
-  toggles: { a: boolean; b: boolean; c: boolean };
 }
 
-/* Source: state = {screen:'overview', jobs:JOBS, jobId:1, candId:null,
- *   modal:null, stageF:'All', ratingF:'All', statusF:'All', search:'',
- *   form:{}, note:'', toggles:{a:true,b:true,c:false}} */
 let state: AppState = {
-  jobs: createInitialJobs(),
-  jobId: 1,
+  jobs: [],
+  settings: null,
+  userId: null,
+  userName: '',
+  loading: true,
+  error: null,
+  busy: false,
+  jobId: null,
   candId: null,
   modal: null,
   stageF: 'All',
@@ -60,7 +81,6 @@ let state: AppState = {
   search: '',
   form: {},
   note: '',
-  toggles: { a: true, b: true, c: false },
 };
 
 const listeners = new Set<() => void>();
@@ -76,8 +96,6 @@ export function getState(): AppState {
   return state;
 }
 
-/* Server snapshot: the store is module scope and deterministic at import
- * time, so SSR and the first client render agree. */
 export function getServerState(): AppState {
   return state;
 }
@@ -86,29 +104,203 @@ function emit() {
   listeners.forEach((fn) => fn());
 }
 
-/* Source: set(p) / setState(p | updater) */
 export function setState(patch: Partial<AppState> | ((s: AppState) => Partial<AppState>)) {
   const next = typeof patch === 'function' ? patch(state) : patch;
   state = { ...state, ...next };
   emit();
 }
 
-/* ---- derived reads (source: job(), allCands(), avatar(), segments(), chip()) ---- */
+/* ---------------------------------------------------------------- loading */
+
+interface ProfileRow {
+  id: string;
+  full_name: string;
+}
+
+export async function loadAll(): Promise<void> {
+  const db = supabase();
+
+  const { data: auth } = await db.auth.getUser();
+  const userId = auth.user?.id ?? null;
+  const userEmail = auth.user?.email ?? '';
+
+  const [jobsRes, candsRes, notesRes, profilesRes, settingsRes] = await Promise.all([
+    db.from('jobs').select('*').order('posted_on', { ascending: false }),
+    db.from('candidates').select('*').order('applied_on', { ascending: true }),
+    db.from('candidate_notes').select('*').order('created_at', { ascending: true }),
+    db.from('profiles').select('id, full_name'),
+    db.from('app_settings').select('*').eq('id', 1).maybeSingle(),
+  ]);
+
+  const firstError =
+    jobsRes.error || candsRes.error || notesRes.error || profilesRes.error || settingsRes.error;
+  if (firstError) {
+    setState({ loading: false, error: firstError.message });
+    return;
+  }
+
+  const profiles = new Map<string, string>();
+  for (const p of (profilesRes.data ?? []) as ProfileRow[]) {
+    profiles.set(p.id, p.full_name || 'Unnamed');
+  }
+
+  const notesByCand = new Map<string, Note[]>();
+  for (const n of notesRes.data ?? []) {
+    const list = notesByCand.get(n.candidate_id) ?? [];
+    list.push({
+      id: n.id,
+      who: n.created_by ? (profiles.get(n.created_by) ?? 'Unknown') : 'Unattributed',
+      when: relativeTime(n.created_at),
+      text: n.body,
+      createdBy: n.created_by,
+    });
+    notesByCand.set(n.candidate_id, list);
+  }
+
+  const candsByJob = new Map<string, Candidate[]>();
+  for (const c of candsRes.data ?? []) {
+    const cv: CvFile | null =
+      c.cv_object_path && c.cv_file_name && c.cv_mime_type && c.cv_size_bytes !== null
+        ? {
+            path: c.cv_object_path,
+            fileName: c.cv_file_name,
+            mimeType: c.cv_mime_type,
+            sizeBytes: c.cv_size_bytes,
+          }
+        : null;
+
+    const list = candsByJob.get(c.job_id) ?? [];
+    list.push({
+      id: c.id,
+      jobId: c.job_id,
+      name: c.full_name,
+      email: c.email ?? '',
+      phone: c.phone ?? '',
+      linkedinUrl: c.linkedin_url ?? '',
+      source: c.source as Source,
+      stage: c.stage as Stage,
+      rating: c.rating,
+      short: c.is_shortlisted,
+      date: formatDate(c.applied_on),
+      appliedOn: c.applied_on,
+      archivedAt: c.archived_at,
+      cv,
+      notes: notesByCand.get(c.id) ?? [],
+    });
+    candsByJob.set(c.job_id, list);
+  }
+
+  const jobs: Job[] = (jobsRes.data ?? []).map((j) => ({
+    id: j.id,
+    title: j.title,
+    location: j.location ?? '',
+    description: j.description ?? '',
+    source: j.source as Source,
+    status: j.status as 'Open' | 'Closed',
+    posted: formatDate(j.posted_on),
+    postedOn: j.posted_on,
+    archivedAt: j.archived_at,
+    cands: candsByJob.get(j.id) ?? [],
+  }));
+
+  const st = settingsRes.data;
+  const settings: Settings | null = st
+    ? {
+        careersInboxEmail: st.careers_inbox_email ?? '',
+        defaultPipeline: st.default_pipeline,
+        requireEmailOnNewCandidates: st.require_email_on_new_candidates,
+        emailOnShortlistAdd: st.email_on_shortlist_add,
+        requireCvBeforeInterview: st.require_cv_before_interview,
+      }
+    : null;
+
+  setState({
+    jobs,
+    settings,
+    userId,
+    /* A dashboard-created account has no full_name until someone sets one,
+     * so fall back to the local part of the email rather than showing blank. */
+    userName: userId
+      ? profiles.get(userId) || userEmail.split('@')[0] || 'Signed in'
+      : '',
+    loading: false,
+    error: null,
+    jobId: state.jobId ?? jobs.find((j) => !j.archivedAt)?.id ?? jobs[0]?.id ?? null,
+  });
+}
+
+export function resetStore() {
+  state = { ...state, jobs: [], settings: null, userId: null, userName: '', loading: true };
+  emit();
+}
+
+async function withBusy<T>(fn: () => Promise<T>): Promise<T | null> {
+  setState({ busy: true, error: null });
+  try {
+    const result = await fn();
+    await loadAll();
+    return result;
+  } catch (e) {
+    setState({ error: e instanceof Error ? e.message : String(e) });
+    return null;
+  } finally {
+    setState({ busy: false });
+  }
+}
+
+function requireUser(): string {
+  if (!state.userId) throw new Error('Not signed in.');
+  return state.userId;
+}
+
+/* ------------------------------------------------------------- selectors */
 
 export interface CandidateWithJob extends Candidate {
   jobTitle: string;
+  jobArchivedAt: string | null;
 }
 
-export function currentJob(s: AppState = state): Job {
-  return s.jobs.find((j) => j.id === s.jobId) || s.jobs[0];
+export function currentJob(s: AppState = state): Job | undefined {
+  return s.jobs.find((j) => j.id === s.jobId);
 }
 
+/* Every candidate, tagged with their job. `liveCands` is what the active
+ * screens use — the Archive tab is the only place archived rows appear. */
 export function allCands(s: AppState = state): CandidateWithJob[] {
-  return s.jobs.flatMap((j) => j.cands.map((c) => ({ ...c, jobTitle: j.title })));
+  return s.jobs.flatMap((j) =>
+    j.cands.map((c) => ({ ...c, jobTitle: j.title, jobArchivedAt: j.archivedAt }))
+  );
 }
 
-export function avatar(id: number): string {
-  return AVA[id % AVA.length];
+export function liveCands(s: AppState = state): CandidateWithJob[] {
+  return allCands(s).filter((c) => c.archivedAt === null && c.jobArchivedAt === null);
+}
+
+export function liveJobs(s: AppState = state): Job[] {
+  return s.jobs.filter((j) => j.archivedAt === null);
+}
+
+export function archivedJobs(s: AppState = state): Job[] {
+  return s.jobs.filter((j) => j.archivedAt !== null);
+}
+
+/* Candidates archived on their own, whose job is still live. Archived jobs
+ * already show their people in the job's own Archive row. */
+export function archivedCands(s: AppState = state): CandidateWithJob[] {
+  return allCands(s).filter((c) => c.archivedAt !== null && c.jobArchivedAt === null);
+}
+
+/* Only live candidates count toward a job's live figures. */
+export function jobLiveCands(j: Job): Candidate[] {
+  return j.archivedAt ? [] : j.cands.filter((c) => c.archivedAt === null);
+}
+
+/* Source: avatar(id) = AVA[id % AVA.length]. Ids are uuids now, so the index
+ * comes from a small stable hash instead of a modulo. */
+export function avatar(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVA[h % AVA.length];
 }
 
 export interface Segment {
@@ -118,8 +310,9 @@ export interface Segment {
 }
 
 export function segments(j: Job): Segment[] {
-  const t = j.cands.length || 1;
-  return STAGES.map((st) => ({ st, n: j.cands.filter((c) => c.stage === st).length }))
+  const cands = jobLiveCands(j);
+  const t = cands.length || 1;
+  return STAGES.map((st) => ({ st, n: cands.filter((c) => c.stage === st).length }))
     .filter((x) => x.n > 0)
     .map((x) => ({
       w: ((x.n / t) * 100).toFixed(1) + '%',
@@ -143,171 +336,313 @@ export function chip(active: boolean): ChipStyle {
 export function initials(n: string): string {
   return n
     .split(' ')
+    .filter(Boolean)
     .map((w) => w[0])
     .join('')
     .slice(0, 2)
     .toUpperCase();
 }
 
-export function stars(r: number): string {
-  return '★★★★★'.slice(0, r) + '☆☆☆☆☆'.slice(0, 5 - r);
+export function stars(r: number | null): string {
+  const v = r ?? 0;
+  return '★★★★★'.slice(0, v) + '☆☆☆☆☆'.slice(0, 5 - v);
 }
 
-/* ---- mutations ---- */
-
-/* Source: mutate(id, patch) */
-export function mutate(id: number, patch: Partial<Candidate>) {
-  setState((s) => ({
-    jobs: s.jobs.map((j) => ({
-      ...j,
-      cands: j.cands.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-    })),
-  }));
-}
+/* --------------------------------------------------------- local UI state */
 
 export function setSearch(v: string) {
   setState({ search: v });
 }
-
 export function setStatusFilter(v: string) {
   setState({ statusF: v });
 }
-
 export function setStageFilter(v: string) {
   setState({ stageF: v });
 }
-
 export function setRatingFilter(v: string) {
   setState({ ratingF: v });
 }
-
-/* Source: openJob(id) — reset both row filters when entering a job. The
- * navigation half now lives in the calling component (router.push). */
-export function selectJob(id: number) {
+export function selectJob(id: string) {
   setState({ jobId: id, stageF: 'All', ratingF: 'All' });
 }
-
-/* Keeps the store's jobId in sync with the /app/jobs/[jobId] URL segment so
- * chrome that reads the "current job" (the Add Candidate dialog) is correct
- * after a direct load or a refresh. */
-export function syncJobId(id: number) {
-  if (state.jobId !== id) {
-    state = { ...state, jobId: id };
-    emit();
-  }
+export function syncJobId(id: string) {
+  if (state.jobId !== id) setState({ jobId: id });
 }
-
-export function openCandidate(id: number) {
+export function openCandidate(id: string) {
   setState({ candId: id });
 }
-
 export function closePanel() {
   setState({ candId: null });
 }
+export function setNoteDraft(v: string) {
+  setState({ note: v });
+}
+export function openJobModal() {
+  setState({ modal: 'job', form: { source: 'Manual entry', status: 'Open' } });
+}
+export function openCandModal() {
+  setState({ modal: 'cand', form: { source: 'Manual entry', stage: 'Applied', rating: 3 } });
+}
+export function closeModals() {
+  setState({ modal: null, form: {} });
+}
+export function setFormField(k: keyof JobForm, v: string | number | File | null) {
+  setState((s) => ({ form: { ...s.form, [k]: v } }));
+}
 
-/* Source: shortlist / reject row actions */
+/* ------------------------------------------------------------- mutations */
+
+export function updateCandidate(id: string, patch: TablesUpdate<'candidates'>) {
+  return withBusy(async () => {
+    const { error } = await supabase().from('candidates').update(patch).eq('id', id);
+    if (error) throw error;
+  });
+}
+
+/* Source: shortlisting someone still at Applied also moves them to Screening. */
 export function toggleShortlist(c: Candidate) {
-  mutate(c.id, {
-    short: !c.short,
+  return updateCandidate(c.id, {
+    is_shortlisted: !c.short,
     stage: c.stage === 'Applied' ? 'Screening' : c.stage,
   });
 }
 
-export function rejectCandidate(id: number) {
-  mutate(id, { stage: 'Rejected', short: false });
+export function rejectCandidate(id: string) {
+  return updateCandidate(id, { stage: 'Rejected', is_shortlisted: false });
 }
 
-/* Source: panelNext — clamps at index 4 ('Hired'), never lands on 'Rejected'. */
+/* Source: panelNext clamps at index 4 ('Hired') and never lands on Rejected. */
 export function panelNext(cand: Candidate) {
   const i = STAGES.indexOf(cand.stage);
-  mutate(cand.id, { stage: STAGES[Math.min(i + 1, 4)] as Stage });
+  return updateCandidate(cand.id, { stage: STAGES[Math.min(i + 1, 4)] });
 }
 
-export function panelShortlist(id: number) {
-  mutate(id, { short: true });
+export function panelShortlist(id: string) {
+  return updateCandidate(id, { is_shortlisted: true });
 }
 
-export function panelReject(id: number) {
-  mutate(id, { stage: 'Rejected', short: false });
+export function panelReject(id: string) {
   setState({ candId: null });
+  return updateCandidate(id, { stage: 'Rejected', is_shortlisted: false });
 }
 
-export function setNoteDraft(v: string) {
-  setState({ note: v });
+export function setRating(id: string, rating: number) {
+  return updateCandidate(id, { rating });
 }
 
-/* Source: addNote */
+export function setStage(id: string, stage: string) {
+  return updateCandidate(id, { stage: stage as Stage });
+}
+
+export function setLinkedinUrl(id: string, url: string) {
+  return updateCandidate(id, { linkedin_url: url.trim() === '' ? null : url.trim() });
+}
+
 export function addNote(cand: Candidate) {
-  const s = state;
-  if (!s.note.trim()) return;
-  const list: Note[] = (cand.notes || []).concat([
-    { who: 'Hazem K.', when: 'just now', text: s.note },
-  ]);
-  mutate(s.candId as number, { notes: list });
-  setState({ note: '' });
+  const body = state.note;
+  if (!body.trim()) return Promise.resolve(null);
+  return withBusy(async () => {
+    const { error } = await supabase()
+      .from('candidate_notes')
+      .insert({ candidate_id: cand.id, body: body.trim(), created_by: requireUser() });
+    if (error) throw error;
+    setState({ note: '' });
+  });
 }
 
-/* ---- modals ---- */
-
-export function openJobModal() {
-  setState({ modal: 'job', form: { source: 'Manual entry', status: 'Open' } });
+export function deleteNote(id: string) {
+  return withBusy(async () => {
+    const { error } = await supabase().from('candidate_notes').delete().eq('id', id);
+    if (error) throw error;
+  });
 }
 
-export function openCandModal() {
-  setState({ modal: 'cand', form: { source: 'Manual entry', stage: 'Applied', rating: 3 } });
+/* ---------------------------------------------------------------- archive */
+
+export function archiveJob(id: string) {
+  return withBusy(async () => {
+    /* The database also sets status to Closed and stamps archived_by. */
+    const { error } = await supabase()
+      .from('jobs')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  });
 }
 
-export function closeModals() {
-  setState({ modal: null });
+export function restoreJob(id: string) {
+  return withBusy(async () => {
+    const { error } = await supabase().from('jobs').update({ archived_at: null }).eq('id', id);
+    if (error) throw error;
+  });
 }
 
-export function setFormField(k: keyof JobForm, v: string | number) {
-  setState((s) => ({ form: { ...s.form, [k]: v } }));
+export function archiveCandidate(id: string) {
+  setState({ candId: null });
+  return withBusy(async () => {
+    const { error } = await supabase()
+      .from('candidates')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  });
 }
 
-/* Source: submitJob — returns the new job id so the caller can route to it
- * (the source set `screen:'job'` here instead). */
-export function submitJob(): number | null {
-  const f = state.form;
-  if (!f.title) {
-    setState({ modal: null });
-    return null;
+export function restoreCandidate(id: string) {
+  return withBusy(async () => {
+    const { error } = await supabase()
+      .from('candidates')
+      .update({ archived_at: null })
+      .eq('id', id);
+    if (error) throw error;
+  });
+}
+
+/* ------------------------------------------------------------ CV storage */
+
+/* Path shape from the data model: candidates/{candidate id}/{random}.{ext}.
+ * The candidate's id rather than their name, so nothing personal leaks
+ * through the path and a rename never breaks the link. */
+function cvPath(candidateId: string, file: File): string {
+  const ext = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+  const rand =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : String(Date.now());
+  return `candidates/${candidateId}/${rand}.${ext}`;
+}
+
+async function uploadCvFile(candidateId: string, file: File, userId: string) {
+  const db = supabase();
+  const path = cvPath(candidateId, file);
+
+  const { error: upErr } = await db.storage
+    .from(CV_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) throw upErr;
+
+  /* Find the previous file before overwriting the pointer, so it can be
+   * removed — there is no version history by design. */
+  const { data: prev } = await db
+    .from('candidates')
+    .select('cv_object_path')
+    .eq('id', candidateId)
+    .maybeSingle();
+
+  const { error: updErr } = await db
+    .from('candidates')
+    .update({
+      cv_object_path: path,
+      cv_file_name: file.name,
+      cv_mime_type: file.type,
+      cv_size_bytes: file.size,
+      cv_uploaded_at: new Date().toISOString(),
+      cv_uploaded_by: userId,
+    })
+    .eq('id', candidateId);
+  if (updErr) {
+    await db.storage.from(CV_BUCKET).remove([path]);
+    throw updErr;
   }
-  const j: Job = {
-    id: nextUid(),
-    title: f.title,
-    location: f.location || 'Cairo, EG',
-    posted: '05 Aug 2026',
-    source: f.source || 'Manual entry',
-    status: f.status || 'Open',
-    cands: [],
-  };
-  setState((s) => ({ jobs: [j, ...s.jobs], modal: null, jobId: j.id, form: {} }));
-  return j.id;
-}
 
-/* Source: submitCand */
-export function submitCand() {
-  const f = state.form;
-  if (!f.name) {
-    setState({ modal: null });
-    return;
+  if (prev?.cv_object_path && prev.cv_object_path !== path) {
+    await db.storage.from(CV_BUCKET).remove([prev.cv_object_path]);
   }
-  const nc = makeCandidate(
-    f.name,
-    f.email || 'candidate@mail.com',
-    '05 Aug 2026',
-    (f.stage || 'Applied') as Stage,
-    f.rating || 3,
-    false
-  );
-  setState((s) => ({
-    jobs: s.jobs.map((j) => (j.id === s.jobId ? { ...j, cands: [nc, ...j.cands] } : j)),
-    modal: null,
-    form: {},
-  }));
 }
 
-export function toggleSetting(k: 'a' | 'b' | 'c') {
-  setState((s) => ({ toggles: { ...s.toggles, [k]: !s.toggles[k] } }));
+export function uploadCv(candidateId: string, file: File) {
+  return withBusy(async () => {
+    await uploadCvFile(candidateId, file, requireUser());
+  });
+}
+
+/* Private bucket: reading happens through a short-lived signed URL generated
+ * on demand. There is no permanent public address for any CV. */
+export async function signedCvUrl(path: string, seconds = 60): Promise<string | null> {
+  const { data, error } = await supabase().storage.from(CV_BUCKET).createSignedUrl(path, seconds);
+  if (error) return null;
+  return data.signedUrl;
+}
+
+/* ------------------------------------------------------- create job/cand */
+
+/* Returns the new job's id so the caller can route to it. */
+export function submitJob(): Promise<string | null> {
+  const f = state.form;
+  if (!f.title || !f.title.trim()) {
+    closeModals();
+    return Promise.resolve(null);
+  }
+  return withBusy(async () => {
+    const { data, error } = await supabase()
+      .from('jobs')
+      .insert({
+        title: f.title!.trim(),
+        location: f.location?.trim() || null,
+        description: f.description?.trim() || null,
+        source: (f.source as Source) || 'Manual entry',
+        status: (f.status as 'Open' | 'Closed') || 'Open',
+        posted_on: todayIso(),
+        created_by: requireUser(),
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    setState({ modal: null, form: {}, jobId: data.id });
+    return data.id;
+  });
+}
+
+export function submitCand(): Promise<string | null> {
+  const f = state.form;
+  const jobId = state.jobId;
+  if (!f.name || !f.name.trim() || !jobId) {
+    closeModals();
+    return Promise.resolve(null);
+  }
+  return withBusy(async () => {
+    const userId = requireUser();
+    const { data, error } = await supabase()
+      .from('candidates')
+      .insert({
+        job_id: jobId,
+        full_name: f.name!.trim(),
+        email: f.email?.trim() || null,
+        linkedin_url: f.linkedinUrl?.trim() || null,
+        source: (f.source as Source) || 'Manual entry',
+        stage: (f.stage as Stage) || 'Applied',
+        rating: f.rating ?? 3,
+        applied_on: todayIso(),
+        created_by: userId,
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+
+    if (f.cvFile) await uploadCvFile(data.id, f.cvFile, userId);
+
+    setState({ modal: null, form: {} });
+    return data.id;
+  });
+}
+
+/* --------------------------------------------------------------- settings */
+
+export function updateSettings(patch: Partial<Settings>) {
+  return withBusy(async () => {
+    const row: TablesUpdate<'app_settings'> = {};
+    if (patch.careersInboxEmail !== undefined)
+      row.careers_inbox_email = patch.careersInboxEmail.trim() || null;
+    if (patch.defaultPipeline !== undefined) row.default_pipeline = patch.defaultPipeline;
+    if (patch.requireEmailOnNewCandidates !== undefined)
+      row.require_email_on_new_candidates = patch.requireEmailOnNewCandidates;
+    if (patch.emailOnShortlistAdd !== undefined)
+      row.email_on_shortlist_add = patch.emailOnShortlistAdd;
+    if (patch.requireCvBeforeInterview !== undefined)
+      row.require_cv_before_interview = patch.requireCvBeforeInterview;
+    row.updated_by = requireUser();
+
+    const { error } = await supabase().from('app_settings').update(row).eq('id', 1);
+    if (error) throw error;
+  });
 }

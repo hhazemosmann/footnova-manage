@@ -6,9 +6,11 @@
 
 import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { STAGES } from '@/lib/demo-data';
+import { STAGES } from '@/lib/types';
 import {
+  archiveJob,
   chip,
+  jobLiveCands,
   openCandModal,
   openCandidate,
   rejectCandidate,
@@ -33,8 +35,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const s = useAppState();
   const router = useRouter();
 
-  const id = Number(jobId);
-  const job = s.jobs.find((j) => j.id === id);
+  const job = s.jobs.find((j) => j.id === jobId);
 
   /* Keep the store's "current job" aligned with the URL so chrome that reads
    * it (the Add Candidate dialog) is correct after a direct load. */
@@ -42,23 +43,26 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
     if (job) syncJobId(job.id);
   }, [job]);
 
+  /* Wait for the first load before deciding a job is missing, otherwise a
+   * direct visit bounces to /app/jobs while the data is still in flight. */
   useEffect(() => {
-    if (!job) router.replace('/app/jobs');
-  }, [job, router]);
+    if (!s.loading && !job) router.replace('/app/jobs');
+  }, [s.loading, job, router]);
 
   if (!job) return null;
 
   const q = s.search.trim().toLowerCase();
-  const filtered = job.cands
+  const live = jobLiveCands(job);
+  const filtered = live
     .filter((c) => s.stageF === 'All' || c.stage === s.stageF)
-    .filter((c) => s.ratingF === 'All' || c.rating >= Number(s.ratingF))
+    .filter((c) => s.ratingF === 'All' || (c.rating ?? 0) >= Number(s.ratingF))
     .filter((c) => !q || c.name.toLowerCase().includes(q));
   const rows = filtered.map(buildRow);
 
   const stats = [
-    { k: 'APPLICANTS', v: job.cands.length },
-    { k: 'SHORTLISTED', v: job.cands.filter((c) => c.short).length },
-    { k: 'IN INTERVIEW', v: job.cands.filter((c) => c.stage === 'Interview').length },
+    { k: 'APPLICANTS', v: live.length },
+    { k: 'SHORTLISTED', v: live.filter((c) => c.short).length },
+    { k: 'IN INTERVIEW', v: live.filter((c) => c.stage === 'Interview').length },
   ];
 
   return (
@@ -137,9 +141,32 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             </span>
           </div>
         ))}
-        <Button size="md" onClick={openCandModal}>
-          ＋ Add Candidate
-        </Button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button size="md" onClick={openCandModal}>
+            ＋ Add Candidate
+          </Button>
+          {/* Archive replaces deletion entirely — the job and everyone
+              attached to it move to the Archive tab and can be restored. */}
+          <Button
+            variant="secondary"
+            size="md"
+            disabled={s.busy}
+            onClick={() => {
+              if (
+                window.confirm(
+                  `Archive "${job.title}" and its ${live.length} candidate${
+                    live.length === 1 ? '' : 's'
+                  }? Nothing is deleted — you can restore it from the Archive tab.`
+                )
+              ) {
+                void archiveJob(job.id).then(() => router.push('/app/archive'));
+              }
+            }}
+            style={{ color: '#EFEDDA', borderColor: '#EFEDDA' }}
+          >
+            Archive job
+          </Button>
+        </div>
       </div>
 
       <div
@@ -227,7 +254,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             })}
           </div>
           <span style={{ marginLeft: 'auto', fontSize: '12.5px', color: '#2C3A5E' }}>
-            {rows.length} of {job.cands.length} candidates
+            {rows.length} of {live.length} candidates
           </span>
         </div>
 
