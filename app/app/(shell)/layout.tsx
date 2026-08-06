@@ -12,7 +12,6 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import RequireAuth from '@/components/RequireAuth';
-import CandidatePanel from '@/components/CandidatePanel';
 import JobModal from '@/components/JobModal';
 import CandidateModal from '@/components/CandidateModal';
 import { Button } from '@/components/ds';
@@ -368,7 +367,6 @@ function Shell({ children }: { children: React.ReactNode }) {
         </div>
       </main>
 
-      <CandidatePanel />
       <JobModal />
       <CandidateModal />
     </div>

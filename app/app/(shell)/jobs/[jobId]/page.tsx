@@ -12,7 +12,6 @@ import {
   chip,
   jobLiveCands,
   openCandModal,
-  openCandidate,
   rejectCandidate,
   setRatingFilter,
   setStageFilter,
@@ -298,7 +297,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             <button
               type="button"
               className="fn-reset-button"
-              onClick={() => openCandidate(r.cand.id)}
+              onClick={() => router.push('/app/candidates/' + r.cand.id)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -362,13 +361,13 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             <button
               type="button"
               className="fn-reset-button"
-              onClick={() => openCandidate(r.cand.id)}
+              onClick={() => router.push('/app/candidates/' + r.cand.id)}
               style={{ fontSize: '12.5px', fontWeight: 600, color: '#0F52BA', cursor: 'pointer' }}
             >
               {r.cv}
             </button>
             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-              <Button variant="ghost" size="sm" onClick={() => openCandidate(r.cand.id)}>
+              <Button variant="ghost" size="sm" onClick={() => router.push('/app/candidates/' + r.cand.id)}>
                 View
               </Button>
               <Button variant="secondary" size="sm" onClick={() => toggleShortlist(r.cand)}>

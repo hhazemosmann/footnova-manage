@@ -493,6 +493,26 @@ a{color:var(--sapphire);text-decoration:none}a:hover{color:var(--sapphire-hover)
   }
 }
 
+/* Candidate profile — replaces the source's 440px drawer with a real page.
+   Two columns on desktop, single column once there is no room for both. */
+.fn-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .fn-profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 620px) {
+  .fn-profile-header {
+    gap: 14px !important;
+    padding: 20px !important;
+  }
+}
+
 /* ---- scaffold: auth + admin ----
    Added by the conversion; no counterpart in the source HTML. Built only
    from tokens defined above. */

@@ -3,7 +3,7 @@
 /* Shortlist — source view `screen:'shortlist'` / `<sc-if value="{{ isShortlist }}">`. */
 
 import { useRouter } from 'next/navigation';
-import { liveCands, openCandidate, selectJob, stars } from '@/lib/store';
+import { liveCands, stars } from '@/lib/store';
 import { buildRow } from '@/lib/rows';
 import { useAppState } from '@/lib/use-store';
 import { Badge, Button } from '@/components/ds';
@@ -26,13 +26,10 @@ export default function ShortlistPage() {
    * happened to be selected, not their own. Corrected here to resolve the
    * job from `jobTitle`, per the explicit request to fix it rather than
    * reproduce it: this view is used to open real candidates. */
-  function openRow(jobTitle: string | undefined, candId: string) {
-    const target = jobTitle ? s.jobs.find((j) => j.title === jobTitle) : undefined;
-    const targetId = target ? target.id : s.jobId;
-    if (!targetId) return;
-    selectJob(targetId);
-    openCandidate(candId);
-    router.push('/app/jobs/' + targetId);
+  /* Straight to the candidate's own profile page. The design's drawer needed
+   * the right job selected first; a real route does not. */
+  function openRow(_jobTitle: string | undefined, candId: string) {
+    router.push('/app/candidates/' + candId);
   }
 
   return (

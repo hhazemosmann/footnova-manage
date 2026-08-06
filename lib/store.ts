@@ -54,7 +54,6 @@ export interface AppState {
   busy: boolean;
 
   jobId: string | null;
-  candId: string | null;
   modal: 'job' | 'cand' | null;
   stageF: string;
   ratingF: string;
@@ -73,7 +72,6 @@ let state: AppState = {
   error: null,
   busy: false,
   jobId: null,
-  candId: null,
   modal: null,
   stageF: 'All',
   ratingF: 'All',
@@ -158,15 +156,26 @@ export async function loadAll(): Promise<void> {
 
   const profiles = new Map<string, string>();
   for (const p of (profilesRes.data ?? []) as ProfileRow[]) {
-    profiles.set(p.id, p.full_name || 'Unnamed');
+    profiles.set(p.id, p.full_name ?? '');
   }
+
+  /* An account created from the Supabase dashboard has no full_name until
+   * someone sets one. Fall back to the email local part for the signed-in
+   * user — the only person whose email this client is allowed to see. */
+  const displayName = (id: string | null): string => {
+    if (!id) return 'Unattributed';
+    const name = profiles.get(id);
+    if (name) return name;
+    if (id === userId) return userEmail.split('@')[0] || 'You';
+    return 'A teammate';
+  };
 
   const notesByCand = new Map<string, Note[]>();
   for (const n of notesRes.data ?? []) {
     const list = notesByCand.get(n.candidate_id) ?? [];
     list.push({
       id: n.id,
-      who: n.created_by ? (profiles.get(n.created_by) ?? 'Unknown') : 'Unattributed',
+      who: displayName(n.created_by),
       when: relativeTime(n.created_at),
       text: n.body,
       createdBy: n.created_by,
@@ -203,6 +212,7 @@ export async function loadAll(): Promise<void> {
       archivedAt: c.archived_at,
       cv,
       notes: notesByCand.get(c.id) ?? [],
+      addedBy: displayName(c.created_by),
     });
     candsByJob.set(c.job_id, list);
   }
@@ -237,9 +247,7 @@ export async function loadAll(): Promise<void> {
     userId,
     /* A dashboard-created account has no full_name until someone sets one,
      * so fall back to the local part of the email rather than showing blank. */
-    userName: userId
-      ? profiles.get(userId) || userEmail.split('@')[0] || 'Signed in'
-      : '',
+    userName: displayName(userId),
     loading: false,
     /* Deliberately does NOT clear `error`: a mutation may have set a partial
      * -success notice (candidate saved, CV failed) just before this reload,
@@ -327,6 +335,14 @@ function requireUser(): string {
 export interface CandidateWithJob extends Candidate {
   jobTitle: string;
   jobArchivedAt: string | null;
+}
+
+export function candidateById(s: AppState, id: string): CandidateWithJob | undefined {
+  return allCands(s).find((c) => c.id === id);
+}
+
+export function jobOfCandidate(s: AppState, c: Candidate): Job | undefined {
+  return s.jobs.find((j) => j.id === c.jobId);
 }
 
 export function currentJob(s: AppState = state): Job | undefined {
@@ -437,12 +453,6 @@ export function selectJob(id: string) {
 export function syncJobId(id: string) {
   if (state.jobId !== id) setState({ jobId: id });
 }
-export function openCandidate(id: string) {
-  setState({ candId: id });
-}
-export function closePanel() {
-  setState({ candId: null });
-}
 export function setNoteDraft(v: string) {
   setState({ note: v });
 }
@@ -491,7 +501,6 @@ export function panelShortlist(id: string) {
 }
 
 export function panelReject(id: string) {
-  setState({ candId: null });
   return updateCandidate(id, { stage: 'Rejected', is_shortlisted: false });
 }
 
@@ -547,7 +556,6 @@ export function restoreJob(id: string) {
 }
 
 export function archiveCandidate(id: string) {
-  setState({ candId: null });
   return withBusy(async () => {
     const { error } = await supabase()
       .from('candidates')
@@ -648,7 +656,7 @@ export function uploadCv(candidateId: string, file: File) {
 
 /* Private bucket: reading happens through a short-lived signed URL generated
  * on demand. There is no permanent public address for any CV. */
-export async function signedCvUrl(path: string, seconds = 60): Promise<string | null> {
+export async function signedCvUrl(path: string, seconds = 3600): Promise<string | null> {
   const { data, error } = await supabase().storage.from(CV_BUCKET).createSignedUrl(path, seconds);
   if (error) return null;
   return data.signedUrl;

@@ -85,6 +85,8 @@ export interface Candidate {
   archivedAt: string | null;
   cv: CvFile | null;
   notes: Note[];
+  /* Resolved display name of whoever added them, for the profile page. */
+  addedBy: string;
 }
 
 export interface Job {
