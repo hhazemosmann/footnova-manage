@@ -19,6 +19,7 @@ import { useRouter } from 'next/navigation';
 import { useAppState } from '@/lib/use-store';
 import {
   addDocument,
+  getState,
   addNote,
   archiveCandidate,
   deleteDocument,
@@ -182,10 +183,20 @@ export default function CandidateProfilePage({
 
   async function submitDocument() {
     if (!cand || !docFile || !docLabel.trim()) return;
-    await addDocument(cand.id, docLabel, docFile);
-    setDocFile(null);
-    setDocLabel('');
     setDocError('');
+    try {
+      const ok = await addDocument(cand.id, docLabel.trim().slice(0, 60), docFile);
+      if (ok === null) {
+        /* addDocument swallows the error into the store; surface it here too
+         * so the message appears next to the form you were using. */
+        setDocError(getState().error || 'The document could not be uploaded. Please try again.');
+        return;
+      }
+      setDocFile(null);
+      setDocLabel('');
+    } catch (e) {
+      setDocError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   const detail = (k: string, v: React.ReactNode) => (

@@ -9,7 +9,20 @@ import { jobLiveCands, liveCands, liveJobs, segments, selectJob } from '@/lib/st
 import { useAppState } from '@/lib/use-store';
 
 const mono = "'IBM Plex Mono',monospace";
-const FLOW = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired'];
+/* The forward pipeline, used for the cumulative "reached" counts. Offer is
+   still a real stage in the app — it is just no longer its own funnel column,
+   so anyone at Offer counts as having reached Screening and Interview. */
+const PIPELINE = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired'];
+
+/* The columns actually shown, in the order requested: the total first, then
+   rejected, then the pipeline stages that matter. */
+const FUNNEL_COLUMNS = [
+  { key: 'Applied', label: 'Total applied' },
+  { key: 'Rejected', label: 'Rejected' },
+  { key: 'Screening', label: 'Screening' },
+  { key: 'Interview', label: 'Interview' },
+  { key: 'Hired', label: 'Hired' },
+] as const;
 
 
 export default function OverviewPage() {
@@ -43,28 +56,53 @@ export default function OverviewPage() {
     },
   ];
 
-  /* Source: the funnel block, with the design-time props baked to defaults. */
+  /* The funnel block. Columns are Total applied · Rejected · Screening ·
+     Interview · Hired.
+
+     Total applied is everyone. Rejected is an absolute count — it sits
+     outside the forward path, so it is not cumulative. The three pipeline
+     columns are cumulative "reached" counts: someone at Interview counts
+     toward Screening too, which is what makes the drop-off percentages
+     meaningful. */
   const rejected = all.filter((c) => c.stage === 'Rejected').length;
-  const idxOf = (c: { stage: string }) => FLOW.indexOf(c.stage);
-  const counts = FLOW.map((st, i) =>
-    FUNNEL_MODE === 'current'
-      ? all.filter((c) => c.stage === st).length
-      : all.filter((c) => idxOf(c) >= i).length
-  );
+  const pipelineIndex = (c: { stage: string }) => PIPELINE.indexOf(c.stage);
+
+  const countFor = (key: string) => {
+    if (key === 'Applied') return all.length;
+    if (key === 'Rejected') return rejected;
+    if (FUNNEL_MODE === 'current') return all.filter((c) => c.stage === key).length;
+    const i = PIPELINE.indexOf(key);
+    return all.filter((c) => pipelineIndex(c) >= i).length;
+  };
+
+  const counts = FUNNEL_COLUMNS.map((col) => countFor(col.key));
   const fmax = Math.max(...counts, 1);
-  const funnel = FLOW.map((st, i) => {
+
+  const funnel = FUNNEL_COLUMNS.map((col, i) => {
     const n = counts[i];
-    const prev = i ? counts[i - 1] : 0;
     const pct = Math.round((n / fmax) * 100);
+    /* Drop-off only makes sense along the forward path, so it is shown for
+       Interview and Hired and suppressed on Rejected and the column after
+       it, where the previous number is not a parent of this one. */
+    const isPipelineStep = i >= 3;
+    const prev = isPipelineStep ? counts[i - 1] : 0;
     return {
-      label: st,
+      label: col.label,
       n,
-      bg: i === FLOW.length - 1 ? '#2E8B67' : i === 0 ? '#A6C5D7' : ACCENT_COLOR,
+      bg:
+        col.key === 'Hired'
+          ? '#2E8B67'
+          : col.key === 'Rejected'
+            ? '#C1443D'
+            : col.key === 'Applied'
+              ? '#A6C5D7'
+              : ACCENT_COLOR,
       numColor: '#EFEDDA', // computed in the source but never bound in the template
       w: Math.max(pct, 14) + '%',
       share: all.length ? Math.round((n / all.length) * 100) + '% of all' : '—',
-      conv: SHOW_CONVERSION && i ? (prev ? Math.round((n / prev) * 100) + '%↓' : '—') : '',
-      convColor: SHOW_CONVERSION && i && prev && n / prev < 0.4 ? '#D6A13A' : '#A6C5D7',
+      conv: SHOW_CONVERSION && isPipelineStep && prev ? Math.round((n / prev) * 100) + '%↓' : '',
+      convColor:
+        SHOW_CONVERSION && isPipelineStep && prev && n / prev < 0.4 ? '#D6A13A' : '#A6C5D7',
     };
   });
 
@@ -170,7 +208,7 @@ export default function OverviewPage() {
               color: '#A6C5D7',
             }}
           >
-            {counts[0]} ACTIVE / {all.length} TOTAL
+            {all.length} CANDIDATES
           </span>
           <span
             style={{
