@@ -19,6 +19,7 @@ import type { TablesUpdate } from './database.types';
 import {
   AVA,
   Candidate,
+  CandidateDocument,
   CvFile,
   Job,
   Note,
@@ -40,6 +41,7 @@ export interface JobForm {
   status?: string;
   name?: string;
   email?: string;
+  phone?: string;
   linkedinUrl?: string;
   stage?: string;
   rating?: number;
@@ -142,16 +144,22 @@ export async function loadAll(): Promise<void> {
   const userId = auth.user.id;
   const userEmail = auth.user.email ?? '';
 
-  const [jobsRes, candsRes, notesRes, profilesRes, settingsRes] = await Promise.all([
+  const [jobsRes, candsRes, notesRes, docsRes, profilesRes, settingsRes] = await Promise.all([
     db.from('jobs').select('*').order('posted_on', { ascending: false }),
     db.from('candidates').select('*').order('applied_on', { ascending: true }),
     db.from('candidate_notes').select('*').order('created_at', { ascending: true }),
+    db.from('candidate_documents').select('*').order('created_at', { ascending: true }),
     db.from('profiles').select('id, full_name'),
     db.from('app_settings').select('*').eq('id', 1).maybeSingle(),
   ]);
 
   const firstError =
-    jobsRes.error || candsRes.error || notesRes.error || profilesRes.error || settingsRes.error;
+    jobsRes.error ||
+    candsRes.error ||
+    notesRes.error ||
+    docsRes.error ||
+    profilesRes.error ||
+    settingsRes.error;
   if (firstError) {
     setState({ loading: false, error: firstError.message });
     return;
@@ -186,6 +194,22 @@ export async function loadAll(): Promise<void> {
     notesByCand.set(n.candidate_id, list);
   }
 
+  const docsByCand = new Map<string, CandidateDocument[]>();
+  for (const d of docsRes.data ?? []) {
+    const list = docsByCand.get(d.candidate_id) ?? [];
+    list.push({
+      id: d.id,
+      label: d.label,
+      path: d.object_path,
+      fileName: d.file_name,
+      mimeType: d.mime_type,
+      sizeBytes: d.size_bytes,
+      addedBy: displayName(d.created_by),
+      createdAt: d.created_at,
+    });
+    docsByCand.set(d.candidate_id, list);
+  }
+
   const candsByJob = new Map<string, Candidate[]>();
   for (const c of candsRes.data ?? []) {
     const cv: CvFile | null =
@@ -206,6 +230,7 @@ export async function loadAll(): Promise<void> {
       email: c.email ?? '',
       phone: c.phone ?? '',
       linkedinUrl: c.linkedin_url ?? '',
+      location: c.location ?? '',
       source: c.source as Source,
       stage: c.stage as Stage,
       rating: c.rating,
@@ -214,6 +239,7 @@ export async function loadAll(): Promise<void> {
       appliedOn: c.applied_on,
       archivedAt: c.archived_at,
       cv,
+      documents: docsByCand.get(c.id) ?? [],
       notes: notesByCand.get(c.id) ?? [],
       addedBy: displayName(c.created_by),
     });
@@ -531,6 +557,10 @@ export function setStage(id: string, stage: string) {
   return updateCandidate(id, { stage: stage as Stage });
 }
 
+export function setLocation(id: string, location: string) {
+  return updateCandidate(id, { location: location.trim() || null });
+}
+
 export function setLinkedinUrl(id: string, url: string) {
   return updateCandidate(id, { linkedin_url: cleanUrl(url) });
 }
@@ -667,6 +697,57 @@ async function uploadCvFile(candidateId: string, file: File, userId: string) {
   }
 }
 
+/* Extra labelled documents share the candidate-cvs bucket under a
+ * documents/ prefix, so the existing storage policies and the bucket's
+ * PDF/DOCX + 10 MB limits apply to them unchanged. */
+function documentPath(candidateId: string, file: File): string {
+  const ext = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+  const rand =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : String(Date.now());
+  return `documents/${candidateId}/${rand}.${ext}`;
+}
+
+export function addDocument(candidateId: string, label: string, file: File) {
+  return withBusy(async () => {
+    const userId = requireUser();
+    const db = supabase();
+    const path = documentPath(candidateId, file);
+    const mime = cvMimeType(file);
+    const typed = file.type === mime ? file : new File([file], file.name, { type: mime });
+
+    const { error: upErr } = await db.storage
+      .from(CV_BUCKET)
+      .upload(path, typed, { contentType: mime, upsert: false });
+    if (upErr) throw upErr;
+
+    const { error: rowErr } = await db.from('candidate_documents').insert({
+      candidate_id: candidateId,
+      label: label.trim(),
+      object_path: path,
+      file_name: file.name,
+      mime_type: mime,
+      size_bytes: file.size,
+      created_by: userId,
+    });
+    if (rowErr) {
+      /* Do not leave the file behind if the row could not be written. */
+      await db.storage.from(CV_BUCKET).remove([path]);
+      throw rowErr;
+    }
+  });
+}
+
+export function deleteDocument(doc: { id: string; path: string }) {
+  return withBusy(async () => {
+    const db = supabase();
+    const { error } = await db.from('candidate_documents').delete().eq('id', doc.id);
+    if (error) throw error;
+    await db.storage.from(CV_BUCKET).remove([doc.path]);
+  });
+}
+
 export function uploadCv(candidateId: string, file: File) {
   return withBusy(async () => {
     await uploadCvFile(candidateId, file, requireUser());
@@ -747,7 +828,9 @@ export function submitCand(): Promise<string | null> {
         job_id: jobId,
         full_name: f.name!.trim(),
         email: cleanEmail(f.email),
+        phone: f.phone?.trim() || null,
         linkedin_url: cleanUrl(f.linkedinUrl),
+        location: f.location?.trim() || null,
         source: (f.source as Source) || 'Manual entry',
         stage: (f.stage as Stage) || 'Applied',
         rating: f.rating ?? 3,

@@ -67,6 +67,18 @@ export interface CvFile {
   sizeBytes: number;
 }
 
+/* An extra labelled file attached to a candidate, beyond their CV. */
+export interface CandidateDocument {
+  id: string;
+  label: string;
+  path: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  addedBy: string;
+  createdAt: string;
+}
+
 export interface Candidate {
   id: string;
   jobId: string;
@@ -74,6 +86,7 @@ export interface Candidate {
   email: string;
   phone: string;
   linkedinUrl: string;
+  location: string;
   source: Source;
   stage: Stage;
   rating: number | null;
@@ -84,6 +97,7 @@ export interface Candidate {
   appliedOn: string;
   archivedAt: string | null;
   cv: CvFile | null;
+  documents: CandidateDocument[];
   notes: Note[];
   /* Resolved display name of whoever added them, for the profile page. */
   addedBy: string;

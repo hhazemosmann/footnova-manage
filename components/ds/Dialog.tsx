@@ -85,7 +85,7 @@ export default function Dialog({
           boxShadow: 'var(--shadow-lg)',
           padding: 24,
           minWidth: 320,
-          maxWidth: '100%',
+          maxWidth: 'min(680px, 100%)',
           maxHeight: '100%',
           overflowY: 'auto',
           fontFamily: 'var(--font-body)',

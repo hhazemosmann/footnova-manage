@@ -57,6 +57,60 @@ export type Database = {
           },
         ]
       }
+      candidate_documents: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          created_by: string | null
+          file_name: string
+          id: string
+          label: string
+          mime_type: string
+          object_path: string
+          size_bytes: number
+          updated_at: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          created_by?: string | null
+          file_name: string
+          id?: string
+          label: string
+          mime_type: string
+          object_path: string
+          size_bytes: number
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          created_by?: string | null
+          file_name?: string
+          id?: string
+          label?: string
+          mime_type?: string
+          object_path?: string
+          size_bytes?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_documents_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "candidate_documents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_notes: {
         Row: {
           body: string
@@ -160,6 +214,7 @@ export type Database = {
           is_shortlisted: boolean
           job_id: string
           linkedin_url: string | null
+          location: string | null
           phone: string | null
           rating: number | null
           source: Database["public"]["Enums"]["entity_source"]
@@ -184,6 +239,7 @@ export type Database = {
           is_shortlisted?: boolean
           job_id: string
           linkedin_url?: string | null
+          location?: string | null
           phone?: string | null
           rating?: number | null
           source?: Database["public"]["Enums"]["entity_source"]
@@ -208,6 +264,7 @@ export type Database = {
           is_shortlisted?: boolean
           job_id?: string
           linkedin_url?: string | null
+          location?: string | null
           phone?: string | null
           rating?: number | null
           source?: Database["public"]["Enums"]["entity_source"]

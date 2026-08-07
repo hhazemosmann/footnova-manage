@@ -18,8 +18,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAppState } from '@/lib/use-store';
 import {
+  addDocument,
   addNote,
   archiveCandidate,
+  deleteDocument,
   avatar,
   candidateById,
   deleteNote,
@@ -30,6 +32,7 @@ import {
   panelShortlist,
   restoreCandidate,
   setLinkedinUrl,
+  setLocation,
   setNoteDraft,
   setRating,
   setStage,
@@ -76,14 +79,20 @@ export default function CandidateProfilePage({
   const [cvUrlFailed, setCvUrlFailed] = useState(false);
   const [cvError, setCvError] = useState('');
   const [linkedinDraft, setLinkedinDraft] = useState('');
+  const [locationDraft, setLocationDraft] = useState('');
+  const [docLabel, setDocLabel] = useState('');
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docError, setDocError] = useState('');
+  const [docUrls, setDocUrls] = useState<Record<string, string>>({});
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const isPdf = cand?.cv?.mimeType === 'application/pdf';
 
   useEffect(() => {
     setLinkedinDraft(cand?.linkedinUrl ?? '');
+    setLocationDraft(cand?.location ?? '');
     setCvError('');
-  }, [cand?.id, cand?.linkedinUrl]);
+  }, [cand?.id, cand?.linkedinUrl, cand?.location]);
 
   /* Private bucket: mint a signed URL for the open candidate's CV. One hour,
    * so a plain anchor keeps working while the page is open. */
@@ -102,6 +111,30 @@ export default function CandidateProfilePage({
       active = false;
     };
   }, [cand?.cv?.path]);
+
+  /* One signed URL per attached document, refreshed whenever the list
+   * changes. Same private-bucket rules as the CV. */
+  const docKey = (cand?.documents ?? []).map((d) => d.id).join(',');
+  useEffect(() => {
+    let active = true;
+    const docs = cand?.documents ?? [];
+    if (!docs.length) {
+      setDocUrls({});
+      return;
+    }
+    void Promise.all(
+      docs.map(async (d) => [d.id, await signedCvUrl(d.path, 3600)] as const)
+    ).then((pairs) => {
+      if (!active) return;
+      const next: Record<string, string> = {};
+      for (const [id, url] of pairs) if (url) next[id] = url;
+      setDocUrls(next);
+    });
+    return () => {
+      active = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docKey]);
 
   useEffect(() => {
     if (!s.loading && !cand) router.replace('/app/jobs');
@@ -125,6 +158,34 @@ export default function CandidateProfilePage({
       return;
     }
     await uploadCv(cand.id, file);
+  }
+
+  function pickDocument(file: File | null) {
+    setDocError('');
+    if (!file) {
+      setDocFile(null);
+      return;
+    }
+    const n = file.name.toLowerCase();
+    if (!n.endsWith('.pdf') && !n.endsWith('.docx')) {
+      setDocError('Only PDF and DOCX files are accepted.');
+      return;
+    }
+    if (file.size > CV_MAX_BYTES) {
+      setDocError('That file is ' + formatFileSize(file.size) + ' — the limit is 10 MB.');
+      return;
+    }
+    setDocFile(file);
+    /* Suggest the filename (without extension) as the label. */
+    if (!docLabel.trim()) setDocLabel(file.name.replace(/\.(pdf|docx)$/i, '').slice(0, 60));
+  }
+
+  async function submitDocument() {
+    if (!cand || !docFile || !docLabel.trim()) return;
+    await addDocument(cand.id, docLabel, docFile);
+    setDocFile(null);
+    setDocLabel('');
+    setDocError('');
   }
 
   const detail = (k: string, v: React.ReactNode) => (
@@ -394,6 +455,165 @@ export default function CandidateProfilePage({
             )}
           </section>
 
+          {/* ----- extra documents ----- */}
+          <section style={card}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap',
+              }}
+            >
+              <span style={label}>DOCUMENTS</span>
+              <span style={{ fontSize: 12, color: '#2C3A5E' }}>
+                Anything beyond the CV — portfolio, cover letter, certificates
+              </span>
+            </div>
+
+            {cand.documents.length === 0 ? (
+              <p style={{ fontSize: 13.5, color: '#2C3A5E', margin: 0 }}>
+                No extra documents attached.
+              </p>
+            ) : (
+              cand.documents.map((d) => (
+                <div
+                  key={d.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    flexWrap: 'wrap',
+                    background: '#F7F9FC',
+                    border: '1px solid #DDE6F3',
+                    borderRadius: 6,
+                    padding: '10px 12px',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 150, display: 'flex', flexDirection: 'column' }}>
+                    <span
+                      style={{ fontFamily: 'Archivo,sans-serif', fontWeight: 700, fontSize: 14 }}
+                    >
+                      {d.label}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: '#2C3A5E', wordBreak: 'break-word' }}>
+                      {d.fileName} · {formatFileSize(d.sizeBytes)} · added by {d.addedBy}
+                    </span>
+                  </div>
+                  {docUrls[d.id] ? (
+                    <a
+                      href={docUrls[d.id]}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontSize: 12.5, fontWeight: 600, color: '#0F52BA' }}
+                    >
+                      Open in new tab ↗
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: 12, color: '#2C3A5E' }}>Preparing…</span>
+                  )}
+                  <button
+                    type="button"
+                    className="fn-reset-button"
+                    aria-label={'Remove ' + d.label}
+                    disabled={s.busy}
+                    onClick={() => {
+                      if (window.confirm('Remove "' + d.label + '"? The file is deleted for good.')) {
+                        void deleteDocument({ id: d.id, path: d.path });
+                      }
+                    }}
+                    style={{ color: '#C1443D', fontSize: 12.5, fontWeight: 600 }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))
+            )}
+
+            <div
+              style={{
+                borderTop: '1px solid #DDE6F3',
+                paddingTop: 14,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                pickDocument(e.dataTransfer.files?.[0] ?? null);
+              }}
+            >
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, minWidth: 160, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label htmlFor="doc-label" style={label}>
+                    LABEL
+                  </label>
+                  <input
+                    id="doc-label"
+                    placeholder="Portfolio"
+                    maxLength={60}
+                    value={docLabel}
+                    onChange={(e) => setDocLabel(e.target.value)}
+                    style={{
+                      border: '1px solid #A6C5D7',
+                      borderRadius: 6,
+                      padding: '9px 11px',
+                      fontFamily: "'Titillium Web',sans-serif",
+                      fontSize: 13.5,
+                      outline: 'none',
+                      width: '100%',
+                    }}
+                  />
+                </div>
+                <label>
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      fontFamily: 'var(--font-body)',
+                      fontWeight: 600,
+                      fontSize: 13,
+                      padding: '9px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'transparent',
+                      color: 'var(--midnight)',
+                      border: '2px solid var(--midnight)',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {docFile ? 'Change file' : 'Choose file'}
+                  </span>
+                  <input
+                    type="file"
+                    accept={CV_ACCEPT}
+                    className="fn-visually-hidden"
+                    onChange={(e) => pickDocument(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <Button
+                  size="sm"
+                  disabled={s.busy || !docFile || !docLabel.trim()}
+                  onClick={() => void submitDocument()}
+                >
+                  {s.busy ? 'Uploading…' : 'Add document'}
+                </Button>
+              </div>
+              <span style={{ fontSize: 11.5, color: '#2C3A5E' }}>
+                {docFile
+                  ? docFile.name + ' · ' + formatFileSize(docFile.size)
+                  : 'Drop a file here or choose one · PDF or DOCX, max 10 MB'}
+              </span>
+              {docError && (
+                <span role="alert" style={{ fontSize: 12, color: '#C1443D', fontWeight: 600 }}>
+                  {docError}
+                </span>
+              )}
+            </div>
+          </section>
+
           {/* ----- notes ----- */}
           <section style={card}>
             <span style={label}>NOTES</span>
@@ -513,6 +733,10 @@ export default function CandidateProfilePage({
               )
             )}
             {detail(
+              'LOCATION',
+              cand.location ? cand.location : <span style={{ color: '#2C3A5E' }}>Not set</span>
+            )}
+            {detail(
               'LINKEDIN',
               cand.linkedinUrl ? (
                 <a
@@ -527,6 +751,32 @@ export default function CandidateProfilePage({
                 <span style={{ color: '#2C3A5E' }}>Not set</span>
               )
             )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label htmlFor="profile-location" style={label}>
+                EDIT LOCATION
+              </label>
+              <input
+                id="profile-location"
+                placeholder="Cairo, EG"
+                value={locationDraft}
+                onChange={(e) => setLocationDraft(e.target.value)}
+                onBlur={() => {
+                  if (locationDraft.trim() !== cand.location) {
+                    void setLocation(cand.id, locationDraft);
+                  }
+                }}
+                style={{
+                  border: '1px solid #A6C5D7',
+                  borderRadius: 6,
+                  padding: '9px 11px',
+                  fontFamily: "'Titillium Web',sans-serif",
+                  fontSize: 13.5,
+                  outline: 'none',
+                  width: '100%',
+                }}
+              />
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label htmlFor="profile-linkedin" style={label}>

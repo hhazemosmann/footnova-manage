@@ -11,13 +11,6 @@ import { useAppState } from '@/lib/use-store';
 const mono = "'IBM Plex Mono',monospace";
 const FLOW = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired'];
 
-/* Source: the hard-coded `todos` array. */
-const TODOS = [
-  { text: '4 new applicants unreviewed — First Team Analyst', when: 'today', bg: '#C1443D' },
-  { text: 'Offer pending response — Salma Fathy', when: '2d', bg: '#D6A13A' },
-  { text: 'Panel interview to confirm — Peter Gerges', when: 'Thu', bg: '#0F52BA' },
-  { text: 'Close job post: Community Growth Lead', when: 'overdue', bg: '#C1443D' },
-];
 
 export default function OverviewPage() {
   const s = useAppState();
@@ -240,11 +233,13 @@ export default function OverviewPage() {
         </div>
       </div>
 
+      {/* The design had a second column here holding a hardcoded "Needs
+          Action" list. Removed at the owner's request, so Active Jobs now
+          spans the full width. */}
       <div
-        className="fn-grid-split"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0,1fr) 320px',
+          gridTemplateColumns: 'minmax(0,1fr)',
           gap: 16,
           alignItems: 'start',
         }}
@@ -346,49 +341,6 @@ export default function OverviewPage() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div
-            style={{
-              background: '#FFFFFF',
-              border: '1px solid #A6C5D7',
-              borderRadius: 8,
-              padding: '18px 20px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-            }}
-          >
-            <span
-              style={{
-                fontFamily: mono,
-                fontSize: '10.5px',
-                letterSpacing: '0.12em',
-                color: '#2C3A5E',
-              }}
-            >
-              NEEDS ACTION
-            </span>
-            {TODOS.map((t) => (
-              <div
-                key={t.text}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: t.bg,
-                    flex: 'none',
-                  }}
-                />
-                <span style={{ flex: 1 }}>{t.text}</span>
-                <span style={{ fontFamily: mono, fontSize: 11, color: '#2C3A5E' }}>{t.when}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

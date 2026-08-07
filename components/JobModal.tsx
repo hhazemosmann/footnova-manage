@@ -43,7 +43,7 @@ export default function JobModal() {
           display: 'flex',
           flexDirection: 'column',
           gap: 14,
-          width: 'min(440px, 100%)',
+          width: 'min(620px, 100%)',
         }}
       >
         {s.error && (
