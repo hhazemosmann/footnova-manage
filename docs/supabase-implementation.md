@@ -118,16 +118,14 @@ Archiving a candidate does **not** delete their CV. The only file deletion is re
 
 **Reference data (in every environment):** the single `app_settings` row, matching the app's Settings screen defaults. The three toggles are stored but inert — nothing in this product sends email.
 
-**Demo data (development only, applied):** 6 jobs, 24 candidates, 2 notes, from `supabase/seed.sql`. One job (*Match Data Engineer*) is seeded already archived so the Archive tab is verifiable. 24 stage-history rows were written automatically by the trigger. `created_by` is null throughout — no real account created them.
+**Demo data: removed.** 6 sample jobs, 24 sample candidates and their notes were
+loaded during development and **deleted on 5 Aug 2026** at the owner's request,
+along with every file in the `candidate-cvs` bucket. `supabase/seed.sql` was
+deleted too, so nothing can repopulate the database by accident — it remains
+recoverable from git history if it is ever wanted for a fresh dev project.
 
-To remove it later:
-
-```sql
-delete from public.candidate_notes;
-delete from public.candidate_stage_events;
-delete from public.candidates;   -- requires the postgres role
-delete from public.jobs;
-```
+The database now holds no jobs, candidates, notes or stage history. The single
+`app_settings` row and the owner's account remain.
 
 ---
 
