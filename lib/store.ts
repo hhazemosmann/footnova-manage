@@ -30,6 +30,9 @@ import {
 } from './types';
 
 export interface JobForm {
+  /* Set when the job dialog is editing an existing job rather than
+   * creating one. Absent means "create". */
+  editingJobId?: string;
   title?: string;
   location?: string;
   description?: string;
@@ -459,6 +462,22 @@ export function setNoteDraft(v: string) {
 export function openJobModal() {
   setState({ modal: 'job', form: { source: 'Manual entry', status: 'Open' } });
 }
+
+/* Same dialog, prefilled — editing a job reuses the create form so the two
+ * can never drift apart. */
+export function openJobEditModal(job: Job) {
+  setState({
+    modal: 'job',
+    form: {
+      editingJobId: job.id,
+      title: job.title,
+      location: job.location,
+      description: job.description,
+      source: job.source,
+      status: job.status,
+    },
+  });
+}
 export function openCandModal() {
   setState({ modal: 'cand', form: { source: 'Manual entry', stage: 'Applied', rating: 3 } });
 }
@@ -664,13 +683,35 @@ export async function signedCvUrl(path: string, seconds = 3600): Promise<string 
 
 /* ------------------------------------------------------- create job/cand */
 
-/* Returns the new job's id so the caller can route to it. */
+/* Returns the new job's id so the caller can route to it, or null when the
+ * dialog was editing an existing job (the caller should stay put). */
 export function submitJob(): Promise<string | null> {
   const f = state.form;
   if (!f.title || !f.title.trim()) {
     closeModals();
     return Promise.resolve(null);
   }
+
+  if (f.editingJobId) {
+    const id = f.editingJobId;
+    return withBusy(async () => {
+      const { error } = await supabase()
+        .from('jobs')
+        .update({
+          title: f.title!.trim(),
+          location: f.location?.trim() || null,
+          description: f.description?.trim() || null,
+          source: (f.source as Source) || 'Manual entry',
+          status: (f.status as 'Open' | 'Closed') || 'Open',
+        })
+        .eq('id', id);
+      if (error) throw error;
+      setState({ modal: null, form: {} });
+      /* null so the caller does not navigate — you stay where you were. */
+      return null;
+    });
+  }
+
   return withBusy(async () => {
     const { data, error } = await supabase()
       .from('jobs')

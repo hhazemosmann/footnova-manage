@@ -5,6 +5,7 @@
 import { useRouter } from 'next/navigation';
 import {
   chip,
+  openJobEditModal,
   jobLiveCands,
   liveCands,
   liveJobs,
@@ -103,8 +104,10 @@ export default function JobsPage() {
         {visibleJobs.map((j) => {
           const segs = segments(j);
           return (
+            /* Positioned wrapper so the Edit control can sit on top of the
+               card without being nested inside the card's own <button>. */
+            <div key={j.id} style={{ position: 'relative' }}>
             <button
-              key={j.id}
               type="button"
               className="fn-reset-button"
               onClick={() => openJob(j.id)}
@@ -130,6 +133,8 @@ export default function JobsPage() {
                   alignItems: 'flex-start',
                   justifyContent: 'space-between',
                   gap: 12,
+                  /* room for the Edit control layered at the top right */
+                  paddingRight: 54,
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -232,6 +237,31 @@ export default function JobsPage() {
                 </div>
               </div>
             </button>
+
+            <button
+              type="button"
+              aria-label={'Edit ' + j.title}
+              disabled={s.busy}
+              onClick={() => openJobEditModal(j)}
+              style={{
+                position: 'absolute',
+                top: 14,
+                right: 14,
+                fontFamily: "'Titillium Web',system-ui,sans-serif",
+                fontSize: 12,
+                fontWeight: 600,
+                color: '#0F52BA',
+                background: '#FFFFFF',
+                border: '1px solid #A6C5D7',
+                borderRadius: 4,
+                padding: '4px 9px',
+                cursor: s.busy ? 'not-allowed' : 'pointer',
+                opacity: s.busy ? 0.5 : 1,
+              }}
+            >
+              Edit
+            </button>
+            </div>
           );
         })}
       </div>

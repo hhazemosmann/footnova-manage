@@ -10,6 +10,7 @@ import { STAGES } from '@/lib/types';
 import {
   archiveJob,
   chip,
+  openJobEditModal,
   jobLiveCands,
   openCandModal,
   rejectCandidate,
@@ -143,6 +144,15 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button size="md" onClick={openCandModal}>
             ＋ Add Candidate
+          </Button>
+          <Button
+            variant="secondary"
+            size="md"
+            disabled={s.busy}
+            onClick={() => openJobEditModal(job)}
+            style={{ color: '#EFEDDA', borderColor: '#EFEDDA' }}
+          >
+            Edit job
           </Button>
           {/* Archive replaces deletion entirely — the job and everyone
               attached to it move to the Archive tab and can be restored. */}

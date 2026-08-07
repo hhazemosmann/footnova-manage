@@ -26,14 +26,18 @@ export default function JobModal() {
 
   if (s.modal !== 'job') return null;
 
+  const isEditing = !!s.form.editingJobId;
+
   /* Source set `screen:'job'` + the new jobId; that becomes a route push. */
   async function onSubmit() {
+    /* submitJob returns an id only when it created something; editing
+     * returns null so we stay on the current screen. */
     const newId = await submitJob();
     if (newId) router.push('/app/jobs/' + newId);
   }
 
   return (
-    <Dialog title="Post New Job" onClose={closeModals}>
+    <Dialog title={isEditing ? 'Edit Job' : 'Post New Job'} onClose={closeModals}>
       <div
         style={{
           display: 'flex',
@@ -133,7 +137,7 @@ export default function JobModal() {
             Cancel
           </Button>
           <Button size="sm" disabled={s.busy} onClick={() => void onSubmit()}>
-            {s.busy ? 'Saving…' : 'Post Job'}
+            {s.busy ? 'Saving…' : isEditing ? 'Save changes' : 'Post Job'}
           </Button>
         </div>
       </div>
