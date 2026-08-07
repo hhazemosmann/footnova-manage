@@ -27,6 +27,13 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  /* Verification builds write somewhere else so they cannot overwrite the
+   * .next directory a running `next dev` is serving from. Doing that leaves
+   * the browser asking for chunks that no longer exist, which surfaces as
+   * "Cannot read properties of undefined (reading 'call')" or a blank 500.
+   * Use `npm run verify` rather than `npm run build` while dev is running. */
+  distDir: process.env.NEXT_DIST_DIR || '.next',
+
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "supabase:types": "supabase gen types typescript --project-id veaazwasmtxanwpmubsu > lib/database.types.ts",
-    "supabase:test": "supabase test db --linked"
+    "supabase:test": "supabase test db --linked",
+    "verify": "node -e \"process.env.NEXT_DIST_DIR='.next-verify';require('child_process').execSync('next build',{stdio:'inherit',env:process.env})\""
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
