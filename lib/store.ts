@@ -123,26 +123,26 @@ interface ProfileRow {
 export async function loadAll(): Promise<void> {
   const db = supabase();
 
-  /* A stale cookie can still satisfy PostgREST (it only checks the signature)
-   * while the session behind it is gone — revoked elsewhere, password
-   * changed, account removed. That left the UI looking signed in while every
-   * write failed with "Not signed in.". Treat it as signed out instead. */
-  const { data: auth, error: authError } = await db.auth.getUser();
-  if (authError || !auth.user) {
-    try {
-      await db.auth.signOut();
-    } catch {
-      /* the session is already gone; the local cookie is cleared regardless */
-    }
-    setState({
-      loading: false,
-      userId: null,
-      error: 'Your session has expired. Please sign in again.',
-    });
+  /* Read the identity from the LOCAL session rather than getUser().
+   *
+   * getUser() is a network call. An earlier version signed the user out
+   * whenever it failed, to catch a stale cookie whose session no longer
+   * exists. That was far too eager: opening a file picker moves focus, which
+   * makes Supabase emit an auth event, which re-ran this function — and one
+   * flaky getUser() then signed the user out mid-task and blanked the page.
+   *
+   * getSession() reads the stored session with no round-trip, so it cannot
+   * fail transiently. A genuinely dead session is still caught, just further
+   * down: PostgREST rejects the JWT and we sign out on that definitive
+   * answer instead of on a guess. */
+  const { data: sessionData } = await db.auth.getSession();
+  const session = sessionData.session;
+  if (!session) {
+    setState({ loading: false, userId: null });
     return;
   }
-  const userId = auth.user.id;
-  const userEmail = auth.user.email ?? '';
+  const userId = session.user.id;
+  const userEmail = session.user.email ?? '';
 
   const [jobsRes, candsRes, notesRes, docsRes, profilesRes, settingsRes] = await Promise.all([
     db.from('jobs').select('*').order('posted_on', { ascending: false }),
@@ -161,6 +161,24 @@ export async function loadAll(): Promise<void> {
     profilesRes.error ||
     settingsRes.error;
   if (firstError) {
+    /* PGRST301 / "JWT" means the token really was rejected — the stale-session
+     * case the security audit cared about. Anything else is an ordinary query
+     * failure and must NOT destroy the session. */
+    const code = (firstError as { code?: string }).code ?? '';
+    const invalidJwt = code === 'PGRST301' || /jwt|token/i.test(firstError.message);
+    if (invalidJwt) {
+      try {
+        await db.auth.signOut();
+      } catch {
+        /* already gone; the local cookie is cleared regardless */
+      }
+      setState({
+        loading: false,
+        userId: null,
+        error: 'Your session has expired. Please sign in again.',
+      });
+      return;
+    }
     setState({ loading: false, error: firstError.message });
     return;
   }

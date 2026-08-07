@@ -19,6 +19,11 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     let active = true;
+    /* Which account the workspace is currently loaded for. Supabase re-emits
+     * SIGNED_IN on things like tab focus and token refresh, so reloading on
+     * every event would refetch constantly — and, worse, could interrupt what
+     * you were doing. Only an actual change of account matters. */
+    let loadedFor: string | null = null;
 
     supabase()
       .auth.getSession()
@@ -29,18 +34,29 @@ export default function RequireAuth({ children }: { children: React.ReactNode })
           return;
         }
         setStatus('allowed');
+        loadedFor = data.session.user.id;
         void loadAll();
       });
 
     const { data: sub } = supabase().auth.onAuthStateChange((event, session) => {
       if (!active) return;
-      if (!session) {
+
+      /* Only an explicit sign-out sends you back to the login screen. A
+       * missing session on any other event is treated as noise, because
+       * blanking the page mid-task is far worse than a moment of stale data. */
+      if (event === 'SIGNED_OUT') {
+        loadedFor = null;
         resetStore();
         setStatus('pending');
         router.replace('/app');
         return;
       }
-      if (event === 'SIGNED_IN') void loadAll();
+
+      if (session && session.user.id !== loadedFor) {
+        loadedFor = session.user.id;
+        setStatus('allowed');
+        void loadAll();
+      }
     });
 
     return () => {
