@@ -711,7 +711,13 @@ async function uploadCvFile(candidateId: string, file: File, userId: string) {
   }
 
   if (prev?.cv_object_path && prev.cv_object_path !== path) {
-    await db.storage.from(CV_BUCKET).remove([prev.cv_object_path]);
+    /* The pointer already moved, so a failed cleanup must not fail the whole
+     * upload — but it must not vanish either. A silent failure here left an
+     * unreferenced copy of someone's CV sitting in the bucket. */
+    const { error: rmErr } = await db.storage.from(CV_BUCKET).remove([prev.cv_object_path]);
+    if (rmErr) {
+      console.warn('CV replaced, but the previous file could not be removed:', prev.cv_object_path, rmErr);
+    }
   }
 }
 
@@ -762,7 +768,10 @@ export function deleteDocument(doc: { id: string; path: string }) {
     const db = supabase();
     const { error } = await db.from('candidate_documents').delete().eq('id', doc.id);
     if (error) throw error;
-    await db.storage.from(CV_BUCKET).remove([doc.path]);
+    const { error: rmErr } = await db.storage.from(CV_BUCKET).remove([doc.path]);
+    if (rmErr) {
+      console.warn('Document row removed, but the file could not be deleted:', doc.path, rmErr);
+    }
   });
 }
 
