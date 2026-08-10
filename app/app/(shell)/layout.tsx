@@ -16,10 +16,28 @@ import JobModal from '@/components/JobModal';
 import CandidateModal from '@/components/CandidateModal';
 import { Button } from '@/components/ds';
 import { supabase } from '@/lib/supabase/client';
-import { initials, liveCands, liveJobs, openJobModal, setSearch } from '@/lib/store';
+import {
+  allCands,
+  initials,
+  jobLiveCands,
+  liveCands,
+  liveJobs,
+  openJobModal,
+  setSearch,
+} from '@/lib/store';
 import { useAppState } from '@/lib/use-store';
 
 const mono = "'IBM Plex Mono',monospace";
+
+/* Group heading inside the search results panel. */
+const searchGroupStyle: React.CSSProperties = {
+  display: 'block',
+  padding: '8px 10px 4px',
+  fontFamily: mono,
+  fontSize: '10px',
+  letterSpacing: '0.12em',
+  color: '#2C3A5E',
+};
 
 /* Source: the `nav` array in renderVals. `href` replaces the `go` handler. */
 const NAV = [
@@ -43,6 +61,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  /* The results panel is only open while the field has focus and text in it.
+   * Blur is deferred so a click on a result still lands. */
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const all = liveCands(s);
   const shortAll = all.filter((c) => c.short);
@@ -54,6 +75,36 @@ function Shell({ children }: { children: React.ReactNode }) {
    * i.e. Jobs stays lit while a job-detail view is open. */
   const isActive = (key: string, href: string) =>
     pathname === href || (key === 'jobs' && pathname.startsWith('/app/jobs'));
+
+  /* Topbar search used to feed two screens only — job titles on Jobs, names
+   * inside one job — so from Overview, Shortlist or Archive it did nothing at
+   * all and read as broken. It now searches everything from anywhere and
+   * navigates straight to what you picked, which is what the placeholder has
+   * always promised. The per-screen filtering below it is untouched. */
+  const query = s.search.trim().toLowerCase();
+  const jobHits = query
+    ? s.jobs
+        .filter((j) =>
+          (j.title + ' ' + j.location + ' ' + j.source).toLowerCase().includes(query)
+        )
+        .slice(0, 5)
+    : [];
+  const candHits = query
+    ? allCands(s)
+        .filter((c) =>
+          (c.name + ' ' + c.email + ' ' + c.location + ' ' + c.jobTitle)
+            .toLowerCase()
+            .includes(query)
+        )
+        .slice(0, 8)
+    : [];
+  const hitCount = jobHits.length + candHits.length;
+
+  function goTo(href: string) {
+    setSearchOpen(false);
+    setSearch('');
+    router.push(href);
+  }
 
   const counts: Record<string, string> = {
     overview: '',
@@ -79,6 +130,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div
+      className="fn-shell"
       style={{
         display: 'flex',
         height: '100vh',
@@ -243,6 +295,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main
+        className="fn-main"
         style={{
           flex: 1,
           minWidth: 0,
@@ -287,6 +340,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               border: '1px solid #A6C5D7',
               borderRadius: 6,
               padding: '8px 12px',
+              position: 'relative',
             }}
           >
             <span aria-hidden="true" style={{ color: '#2C3A5E', fontSize: 13 }}>
@@ -298,7 +352,22 @@ function Shell({ children }: { children: React.ReactNode }) {
             <input
               id="fn-search"
               value={s.search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setSearchOpen(true);
+              }}
+              onFocus={() => setSearchOpen(true)}
+              /* A click on a result would otherwise unmount the panel on blur
+               * before the click registered. */
+              onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearch('');
+                  setSearchOpen(false);
+                  e.currentTarget.blur();
+                }
+              }}
+              autoComplete="off"
               placeholder="Search jobs or candidates"
               style={{
                 flex: 1,
@@ -311,6 +380,80 @@ function Shell({ children }: { children: React.ReactNode }) {
                 color: '#101B3A',
               }}
             />
+
+            {searchOpen && query && (
+              <div
+                role="listbox"
+                aria-label="Search results"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  right: 0,
+                  zIndex: 50,
+                  maxHeight: 340,
+                  overflowY: 'auto',
+                  background: '#FFFFFF',
+                  border: '1px solid #A6C5D7',
+                  borderRadius: 6,
+                  boxShadow: 'var(--shadow-md)',
+                  padding: 6,
+                }}
+              >
+                {hitCount === 0 && (
+                  <p style={{ margin: 0, padding: '10px 10px', fontSize: 13, color: '#2C3A5E' }}>
+                    Nothing matches “{s.search.trim()}”.
+                  </p>
+                )}
+
+                {jobHits.length > 0 && (
+                  <span style={{ ...searchGroupStyle }}>JOBS</span>
+                )}
+                {jobHits.map((j) => (
+                  <button
+                    key={j.id}
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    className="fn-reset-button fn-search-hit"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => goTo('/app/jobs/' + j.id)}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: 13.5 }}>
+                      {j.title}
+                      {j.archivedAt ? ' · archived' : ''}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: '#2C3A5E' }}>
+                      {j.location} · {j.status} · {jobLiveCands(j).length} candidates
+                    </span>
+                  </button>
+                ))}
+
+                {candHits.length > 0 && (
+                  <span style={{ ...searchGroupStyle }}>CANDIDATES</span>
+                )}
+                {candHits.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    className="fn-reset-button fn-search-hit"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => goTo('/app/candidates/' + c.id)}
+                  >
+                    <span style={{ fontWeight: 700, fontSize: 13.5 }}>
+                      {c.name}
+                      {c.archivedAt || c.jobArchivedAt ? ' · archived' : ''}
+                    </span>
+                    <span style={{ fontSize: 11.5, color: '#2C3A5E' }}>
+                      {c.jobTitle} · {c.stage}
+                      {c.email ? ' · ' + c.email : ''}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div

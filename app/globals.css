@@ -461,6 +461,40 @@ a{color:var(--sapphire);text-decoration:none}a:hover{color:var(--sapphire-hover)
   .fn-page {
     padding: 16px 16px 32px !important;
   }
+
+  /* On a phone the header should scroll away with the content rather than
+     sit pinned above it. Desktop keeps the fixed-chrome layout: a full-height
+     shell with its own scrolling pane. Here the shell simply grows and the
+     document itself scrolls, so the topbar leaves the screen as you go down
+     and comes back when you scroll up — and the sidebar drawer, being
+     position:fixed, is unaffected. */
+  .fn-shell {
+    height: auto !important;
+    min-height: 100vh;
+    overflow: visible !important;
+  }
+  .fn-main {
+    min-height: 0;
+  }
+  .fn-page {
+    overflow: visible !important;
+  }
+}
+
+/* One result inside the topbar search panel. */
+.fn-search-hit {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.fn-search-hit:hover,
+.fn-search-hit:focus-visible {
+  background: #F2F6FC;
 }
 
 /* Data-heavy views: metric / funnel / split grids reflow, tables keep the
