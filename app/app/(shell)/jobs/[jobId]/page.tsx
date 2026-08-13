@@ -184,9 +184,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           border: '1px solid #A6C5D7',
           borderRadius: 8,
           boxShadow: 'var(--shadow-sm)',
-          /* Source: the table's own contained horizontal scroll — this is the
-             documented mobile strategy for this view. */
-          overflowX: 'auto',
         }}
       >
         <div
@@ -267,6 +264,11 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
           </span>
         </div>
 
+        {/* Source: the table's own contained horizontal scroll — the
+            documented mobile strategy for this view. Only the rows scroll;
+            the filter bar above stays put and wraps instead. */}
+        <div className="fn-table-scroll">
+        <div className="fn-table-body">
         <div
           style={{
             display: 'grid',
@@ -395,6 +397,8 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             No candidates match these filters.
           </div>
         )}
+        </div>
+        </div>
       </div>
     </div>
   );

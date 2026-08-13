@@ -92,7 +92,6 @@ export default function ArchivePage() {
           border: '1px solid #A6C5D7',
           borderRadius: 8,
           boxShadow: 'var(--shadow-sm)',
-          overflowX: 'auto',
         }}
       >
         <div
@@ -116,7 +115,8 @@ export default function ArchivePage() {
             No archived jobs.
           </div>
         ) : (
-          <>
+          <div className="fn-table-scroll">
+          <div className="fn-table-body">
             <div
               style={{
                 display: 'grid',
@@ -193,7 +193,8 @@ export default function ArchivePage() {
                 </div>
               </div>
             ))}
-          </>
+          </div>
+          </div>
         )}
       </div>
 
@@ -204,7 +205,6 @@ export default function ArchivePage() {
           border: '1px solid #A6C5D7',
           borderRadius: 8,
           boxShadow: 'var(--shadow-sm)',
-          overflowX: 'auto',
         }}
       >
         <div
@@ -228,7 +228,8 @@ export default function ArchivePage() {
             No individually archived candidates.
           </div>
         ) : (
-          <>
+          <div className="fn-table-scroll">
+          <div className="fn-table-body">
             <div
               style={{
                 display: 'grid',
@@ -318,7 +319,8 @@ export default function ArchivePage() {
                 </div>
               </div>
             ))}
-          </>
+          </div>
+          </div>
         )}
       </div>
 

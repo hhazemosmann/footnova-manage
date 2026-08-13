@@ -57,11 +57,12 @@ export default function ShortlistPage() {
           border: '1px solid #A6C5D7',
           borderRadius: 8,
           boxShadow: 'var(--shadow-sm)',
-          /* Contained horizontal scroll — the documented mobile strategy for
-             this view, and the source's own overflow behaviour. */
-          overflowX: 'auto',
         }}
       >
+        {/* Contained horizontal scroll — the documented mobile strategy for
+            this view, and the source's own overflow behaviour. */}
+        <div className="fn-table-scroll">
+        <div className="fn-table-body">
         <div
           style={{
             display: 'grid',
@@ -140,6 +141,8 @@ export default function ShortlistPage() {
             </div>
           </div>
         ))}
+        </div>
+        </div>
       </div>
     </div>
   );

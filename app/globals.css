@@ -481,6 +481,26 @@ a{color:var(--sapphire);text-decoration:none}a:hover{color:var(--sapphire-hover)
   }
 }
 
+/* Tables that scroll sideways when the screen is too narrow for them.
+
+   The rows are grids, not a <table>, so each row box is only as wide as the
+   visible card — the columns spill past it but the row's own background and
+   bottom border stop at the edge, which is why a scrolled table used to look
+   like it was cut in half. Wrapping the rows in a box that is at least as
+   wide as the narrowest the table can legally be makes every row that width,
+   so backgrounds and borders run the whole way across.
+
+   min-content, not max-content: the column minimums are fixed pixels, so this
+   resolves to the table's natural minimum width and nothing more. Where the
+   screen is already wide enough it has no effect at all, and text wraps as
+   before rather than being forced onto one line. */
+.fn-table-scroll {
+  overflow-x: auto;
+}
+.fn-table-body {
+  min-width: min-content;
+}
+
 /* Permanent delete, Archive only. Deliberately quieter than Restore — it is
    the destructive option, so it should never be the one you hit first. */
 .fn-delete-forever {

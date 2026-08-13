@@ -288,7 +288,6 @@ export default function OverviewPage() {
             border: '1px solid #A6C5D7',
             borderRadius: 8,
             boxShadow: 'var(--shadow-sm)',
-            overflowX: 'auto',
           }}
         >
           <div
@@ -312,6 +311,8 @@ export default function OverviewPage() {
               View all jobs →
             </button>
           </div>
+          <div className="fn-table-scroll">
+          <div className="fn-table-body">
           {activeJobs.map((j) => (
             <button
               key={j.id}
@@ -377,6 +378,8 @@ export default function OverviewPage() {
               </div>
             </button>
           ))}
+          </div>
+          </div>
         </div>
 
       </div>
