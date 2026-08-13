@@ -481,6 +481,37 @@ a{color:var(--sapphire);text-decoration:none}a:hover{color:var(--sapphire-hover)
   }
 }
 
+/* Permanent delete, Archive only. Deliberately quieter than Restore — it is
+   the destructive option, so it should never be the one you hit first. */
+.fn-delete-forever {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: #C1443D;
+  border: 2px solid #C1443D;
+  cursor: pointer;
+  transition: background-color 0.12s, color 0.12s;
+}
+.fn-delete-forever:hover:not(:disabled) {
+  background: #C1443D;
+  color: #EFEDDA;
+}
+.fn-delete-forever:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.fn-delete-forever--solid {
+  background: #C1443D;
+  color: #EFEDDA;
+}
+.fn-delete-forever--solid:hover:not(:disabled) {
+  background: #A5372F;
+  border-color: #A5372F;
+}
+
 /* One result inside the topbar search panel. */
 .fn-search-hit {
   display: flex;

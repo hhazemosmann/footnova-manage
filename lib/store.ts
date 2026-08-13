@@ -642,6 +642,75 @@ export function restoreCandidate(id: string) {
   });
 }
 
+/* ------------------------------------------- permanent delete (archive only)
+ *
+ * The second half of a recently-deleted folder: archiving is reversible, this
+ * is not. The database will only ever delete a row that is already archived —
+ * see the delete policies — so nothing live can be destroyed even by mistake.
+ *
+ * Files have to be removed by hand. Storage objects are not rows, so no
+ * cascade reaches them; deleting the candidate row alone would leave their CV
+ * and attachments sitting in the bucket forever. Files go first, because a
+ * failed file delete is recoverable (the row is still there to try again)
+ * whereas a deleted row with live files leaves nothing pointing at them. */
+
+/* Every storage path belonging to a set of candidates: CVs and attachments. */
+function filePathsOf(cands: Candidate[]): string[] {
+  const paths: string[] = [];
+  for (const c of cands) {
+    if (c.cv) paths.push(c.cv.path);
+    for (const d of c.documents) paths.push(d.path);
+  }
+  return paths;
+}
+
+async function purgeFiles(paths: string[]) {
+  if (!paths.length) return;
+  const { error } = await supabase().storage.from(CV_BUCKET).remove(paths);
+  /* A missing file is not worth failing the delete over — the point of the
+   * operation is that the data goes away. Anything else is worth a warning. */
+  if (error) console.warn('Some files could not be removed from storage:', paths, error);
+}
+
+/* Delete an archived job outright, with everyone who applied to it and
+ * everything attached to them. */
+export function deleteJobForever(id: string) {
+  return withBusy(async () => {
+    const db = supabase();
+    const job = state.jobs.find((j) => j.id === id);
+    if (!job) throw new Error('That job no longer exists.');
+    if (!job.archivedAt) throw new Error('Only archived jobs can be deleted.');
+
+    await purgeFiles(filePathsOf(job.cands));
+
+    /* candidates -> jobs is ON DELETE RESTRICT, so the people go first. Their
+     * notes, documents and stage history cascade away with them. */
+    if (job.cands.length) {
+      const { error: candErr } = await db.from('candidates').delete().eq('job_id', id);
+      if (candErr) throw candErr;
+    }
+
+    const { error } = await db.from('jobs').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
+
+/* Delete a single archived candidate outright. */
+export function deleteCandidateForever(id: string) {
+  return withBusy(async () => {
+    const cand = allCands(state).find((c) => c.id === id);
+    if (!cand) throw new Error('That candidate no longer exists.');
+    if (!cand.archivedAt && !cand.jobArchivedAt) {
+      throw new Error('Only archived candidates can be deleted.');
+    }
+
+    await purgeFiles(filePathsOf([cand]));
+
+    const { error } = await supabase().from('candidates').delete().eq('id', id);
+    if (error) throw error;
+  });
+}
+
 /* ------------------------------------------------------------ CV storage */
 
 /* Path shape from the data model: candidates/{candidate id}/{random}.{ext}.
