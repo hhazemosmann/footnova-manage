@@ -113,6 +113,12 @@ export default function FinanceDashboard() {
           footnote="Accountants call this accounts payable"
         />
         <StatCard
+          term="You have put in"
+          help="your own money, invested into the business"
+          value={money(t.capitalIn)}
+          footnote="Capital — the business owes this back to you, so it is not counted as profit"
+        />
+        <StatCard
           term="Entries recorded"
           help="how many lines are in the books"
           value={String(t.count)}

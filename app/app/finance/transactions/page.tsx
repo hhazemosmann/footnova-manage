@@ -11,12 +11,14 @@
 import { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
+  KINDS,
   METHODS,
   PaymentMethod,
   addTxn,
   categoryById,
   deleteTxn,
   formatMoney,
+  isMoneyIn,
   liveCategories,
   liveTournaments,
   parseAmount,
@@ -170,7 +172,7 @@ function Transactions() {
                 style={inputStyle}
               >
                 <option value="">Choose…</option>
-                {(['Income', 'Direct cost', 'Operating expense'] as const).map((kind) => (
+                {KINDS.map((kind) => (
                   <optgroup key={kind} label={kind}>
                     {categories
                       .filter((c) => c.kind === kind)
@@ -257,10 +259,12 @@ function Transactions() {
           {chosen && (
             <span style={{ fontSize: 12.5, color: '#2C3A5E' }}>
               This will be recorded as{' '}
-              <strong style={{ color: chosen.kind === 'Income' ? '#2E8B67' : '#C1443D' }}>
-                {chosen.kind === 'Income' ? 'money in' : 'money out'}
+              <strong style={{ color: isMoneyIn(chosen.kind) ? '#2E8B67' : '#C1443D' }}>
+                {isMoneyIn(chosen.kind) ? 'money in' : 'money out'}
               </strong>{' '}
               under {chosen.name}.
+              {chosen.kind === 'Owner capital' &&
+                ' It is money you put in, so it is kept out of the profit figures.'}
             </span>
           )}
 
@@ -309,6 +313,7 @@ function Transactions() {
             <option value="Income">Money in</option>
             <option value="Direct cost">Event costs</option>
             <option value="Operating expense">Running costs</option>
+            <option value="Owner capital">Money you put in</option>
           </select>
           <select
             aria-label="Tournament"
@@ -368,7 +373,8 @@ function Transactions() {
 
               {rows.map((t, i) => {
                 const cat = categoryById(s, t.categoryId);
-                const income = cat?.kind === 'Income';
+                const income = cat ? isMoneyIn(cat.kind) : false;
+                const capital = cat?.kind === 'Owner capital';
                 const tour = t.tournamentId ? tournamentById(s, t.tournamentId) : undefined;
                 return (
                   <div
@@ -385,8 +391,14 @@ function Transactions() {
                   >
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                       <span style={{ fontWeight: 700, fontSize: 13.5 }}>{cat?.name ?? 'Unknown'}</span>
-                      <span style={{ fontSize: 11, color: income ? '#2E8B67' : '#C1443D', fontWeight: 600 }}>
-                        {income ? 'Money in' : 'Money out'}
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: capital ? '#0F52BA' : income ? '#2E8B67' : '#C1443D',
+                          fontWeight: 600,
+                        }}
+                      >
+                        {capital ? 'Money you put in' : income ? 'Money in' : 'Money out'}
                         {!t.settled && ' · not paid yet'}
                       </span>
                     </div>
@@ -408,7 +420,7 @@ function Transactions() {
                         fontSize: 13.5,
                         fontWeight: 700,
                         textAlign: 'right',
-                        color: income ? '#2E8B67' : '#C1443D',
+                        color: capital ? '#0F52BA' : income ? '#2E8B67' : '#C1443D',
                         whiteSpace: 'nowrap',
                       }}
                     >

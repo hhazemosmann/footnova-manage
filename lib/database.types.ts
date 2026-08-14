@@ -585,7 +585,7 @@ export type Database = {
         | "Direct application"
         | "Agency"
         | "Scouting network"
-      finance_kind: "Income" | "Direct cost" | "Operating expense"
+      finance_kind: "Income" | "Direct cost" | "Operating expense" | "Owner capital"
       job_status: "Open" | "Closed"
       payment_method: "Cash" | "Bank transfer" | "Card" | "Cheque" | "Other"
       tournament_status: "Planned" | "Running" | "Completed"
@@ -731,7 +731,7 @@ export const Constants = {
         "Agency",
         "Scouting network",
       ],
-      finance_kind: ["Income", "Direct cost", "Operating expense"],
+      finance_kind: ["Income", "Direct cost", "Operating expense", "Owner capital"],
       job_status: ["Open", "Closed"],
       payment_method: ["Cash", "Bank transfer", "Card", "Cheque", "Other"],
       tournament_status: ["Planned", "Running", "Completed"],

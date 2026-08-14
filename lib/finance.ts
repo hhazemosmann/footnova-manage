@@ -18,11 +18,20 @@ import { supabase } from './supabase/client';
 import { errorMessage } from './store';
 import type { Tables, TablesUpdate } from './database.types';
 
-export type FinanceKind = 'Income' | 'Direct cost' | 'Operating expense';
+export type FinanceKind = 'Income' | 'Direct cost' | 'Operating expense' | 'Owner capital';
 export type PaymentMethod = 'Cash' | 'Bank transfer' | 'Card' | 'Cheque' | 'Other';
 export type TournamentStatus = 'Planned' | 'Running' | 'Completed';
 
-export const KINDS: readonly FinanceKind[] = ['Income', 'Direct cost', 'Operating expense'];
+export const KINDS: readonly FinanceKind[] = [
+  'Income',
+  'Direct cost',
+  'Operating expense',
+  'Owner capital',
+];
+
+/* The three kinds an income statement is built from. Owner capital is money
+ * in, but it is not earnings, so it is kept out of every profit figure. */
+export const PROFIT_KINDS: readonly FinanceKind[] = ['Income', 'Direct cost', 'Operating expense'];
 export const METHODS: readonly PaymentMethod[] = [
   'Cash',
   'Bank transfer',
@@ -43,7 +52,14 @@ export const KIND_HELP: Record<FinanceKind, string> = {
   Income: 'money coming in',
   'Direct cost': 'money spent on putting on a specific event',
   'Operating expense': 'money spent running the business itself',
+  'Owner capital': 'money you put in yourself — kept out of profit',
 };
+
+/* True for anything that increases the bank balance, whether it was earned or
+ * put in. Used for the in/out label on a row. */
+export function isMoneyIn(kind: FinanceKind): boolean {
+  return kind === 'Income' || kind === 'Owner capital';
+}
 
 export interface Category {
   id: string;
@@ -304,6 +320,9 @@ export interface Totals {
   /* Agreed but not yet moved. */
   owedToYou: number;
   youOwe: number;
+  /* Money put in from the owner's own pocket. Deliberately outside every
+   * figure above: it is equity, not earnings. */
+  capitalIn: number;
   count: number;
 }
 
@@ -313,11 +332,14 @@ export function totalsFor(s: FinanceState, txns: Txn[]): Totals {
   let operatingExpenses = 0;
   let owedToYou = 0;
   let youOwe = 0;
+  let capitalIn = 0;
 
   for (const t of txns) {
     const kind = kindOf(s, t);
     if (!kind) continue;
-    if (kind === 'Income') {
+    if (kind === 'Owner capital') {
+      capitalIn += t.amount;
+    } else if (kind === 'Income') {
       income += t.amount;
       if (!t.settled) owedToYou += t.amount;
     } else {
@@ -338,6 +360,7 @@ export function totalsFor(s: FinanceState, txns: Txn[]): Totals {
     margin: income ? Math.round((netProfit / income) * 100) : 0,
     owedToYou,
     youOwe,
+    capitalIn,
     count: txns.length,
   };
 }
@@ -413,7 +436,9 @@ export function monthlySeries(s: FinanceState, months = 6): MonthPoint[] {
     const point = index.get(t.occurredOn.slice(0, 7));
     if (!point) continue;
     const kind = kindOf(s, t);
-    if (!kind) continue;
+    /* Capital is left out so the trend shows how the business is trading,
+     * not how much has been propped up. */
+    if (!kind || kind === 'Owner capital') continue;
     if (kind === 'Income') point.income += t.amount;
     else point.spend += t.amount;
   }

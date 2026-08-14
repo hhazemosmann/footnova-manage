@@ -15,6 +15,7 @@ import {
   categoryById,
   deleteTournamentForever,
   formatMoney,
+  isMoneyIn,
   parseAmount,
   restoreTournament,
   totalsFor,
@@ -432,7 +433,7 @@ export default function TournamentPage({
               </div>
               {txns.map((x, i) => {
                 const cat = categoryById(s, x.categoryId);
-                const income = cat?.kind === 'Income';
+                const income = cat ? isMoneyIn(cat.kind) : false;
                 return (
                   <div
                     key={x.id}
