@@ -21,6 +21,14 @@ import { Button } from '@/components/ds';
 
 const mono = "'IBM Plex Mono',monospace";
 
+interface OtherCost {
+  id: number;
+  name: string;
+  amount: string;
+}
+
+let nextOtherId = 1;
+
 export default function PlannerPage() {
   const s = useFinance();
   const router = useRouter();
@@ -30,7 +38,11 @@ export default function PlannerPage() {
   const [fee, setFee] = useState('1000');
   const [prize, setPrize] = useState('6000');
   const [venue, setVenue] = useState('6300');
-  const [other, setOther] = useState('0');
+  /* The other costs are a named list rather than one lump, because "3,000" in
+   * a box tells you nothing three weeks later while "referees 1,200,
+   * photographer 1,800" tells you where to cut. The model still treats them
+   * as a single fixed total — the names are for the person reading it. */
+  const [others, setOthers] = useState<OtherCost[]>([]);
   const [perTeam, setPerTeam] = useState('0');
   const [share, setShare] = useState('100');
   const [target, setTarget] = useState('0');
@@ -43,7 +55,8 @@ export default function PlannerPage() {
   const f = parseAmount(fee) ?? 0;
   const p = parseAmount(prize) ?? 0;
   const v = parseAmount(venue) ?? 0;
-  const o = parseAmount(other) ?? 0;
+  /* Every named line, added up. One number from here on. */
+  const o = others.reduce((sum, row) => sum + (parseAmount(row.amount) ?? 0), 0);
   const perT = parseAmount(perTeam) ?? 0;
   const sharePct = Math.min(100, Math.max(0, Number(share) || 0));
   const targetProfit = parseAmount(target) ?? 0;
@@ -76,6 +89,15 @@ export default function PlannerPage() {
 
   const ladder = [4, 8, 12, 16, 20, 24, 32];
 
+  /* Ids only need to be unique within this form, never stored. */
+  function addOther() {
+    setOthers((rows) => [...rows, { id: nextOtherId++, name: '', amount: '' }]);
+  }
+
+  function updateOther(id: number, patch: Partial<OtherCost>) {
+    setOthers((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
   async function saveAsTournament() {
     setSaveError('');
     if (!name.trim()) {
@@ -98,6 +120,13 @@ export default function PlannerPage() {
         formatAmount(p) +
         ' · venue ' +
         formatAmount(v) +
+        /* The named lines are worth keeping — they are the reason the plan
+         * came out where it did. */
+        others
+          .filter((r) => r.name.trim() || parseAmount(r.amount))
+          .map((r) => ' · ' + (r.name.trim() || 'unnamed') + ' ' + formatAmount(parseAmount(r.amount) ?? 0))
+          .join('') +
+        (perT ? ' · ' + formatAmount(perT) + ' per team' : '') +
         (sharePct < 100 ? ' · your share ' + sharePct + '%' : '') +
         ' · planned',
     });
@@ -160,18 +189,66 @@ export default function PlannerPage() {
               style={inputStyle}
             />
           </Field>
-          <Field
-            label="Other fixed costs"
-            help="referees, medical, trophies, marketing"
-            htmlFor="p-other"
-          >
-            <input
-              id="p-other"
-              inputMode="decimal"
-              value={other}
-              onChange={(e) => setOther(e.target.value)}
-              style={inputStyle}
-            />
+          <Field label="Other costs" help="referees, medical, trophies, marketing" wide>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {others.map((row, i) => (
+                <div key={row.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input
+                    aria-label={'Cost ' + (i + 1) + ' name'}
+                    placeholder="Referees"
+                    value={row.name}
+                    autoFocus={row.name === '' && row.amount === ''}
+                    onChange={(e) => updateOther(row.id, { name: e.target.value })}
+                    style={{ ...inputStyle, flex: '2 1 140px' }}
+                  />
+                  <input
+                    aria-label={'Cost ' + (i + 1) + ' amount'}
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={row.amount}
+                    onChange={(e) => updateOther(row.id, { amount: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') addOther();
+                    }}
+                    style={{ ...inputStyle, flex: '1 1 100px', fontFamily: mono }}
+                  />
+                  <button
+                    type="button"
+                    className="fn-reset-button"
+                    aria-label={'Remove ' + (row.name || 'cost ' + (i + 1))}
+                    onClick={() => setOthers((rows) => rows.filter((r) => r.id !== row.id))}
+                    style={{ fontSize: 16, color: '#C1443D', cursor: 'pointer', padding: '0 6px' }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={addOther}
+                  style={{
+                    fontFamily: 'var(--font-body)',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    padding: '8px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'transparent',
+                    color: '#0F52BA',
+                    border: '1px dashed #0F52BA',
+                    cursor: 'pointer',
+                  }}
+                >
+                  ＋ Add a cost
+                </button>
+                {others.length > 0 && (
+                  <span style={{ fontFamily: mono, fontSize: 12.5, color: '#2C3A5E' }}>
+                    {others.length} {others.length === 1 ? 'line' : 'lines'} · {money(o)} in total
+                  </span>
+                )}
+              </div>
+            </div>
           </Field>
           <Field label="Cost per team" help="anything that scales with turnout" htmlFor="p-perteam">
             <input
