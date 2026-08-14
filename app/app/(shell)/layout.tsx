@@ -247,10 +247,27 @@ function Shell({ children }: { children: React.ReactNode }) {
             padding: '16px 20px',
             borderTop: '1px solid #2C3A5E',
             display: 'flex',
-            alignItems: 'center',
-            gap: 10,
+            flexDirection: 'column',
+            gap: 12,
           }}
         >
+          {/* The way across to the other half of the product. */}
+          <button
+            type="button"
+            className="fn-reset-button"
+            onClick={() => router.push('/app/hub')}
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#DDE6F3',
+              cursor: 'pointer',
+              textAlign: 'left',
+            }}
+          >
+            ← Switch workspace
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             aria-hidden="true"
             style={{
@@ -291,6 +308,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           >
             Sign out
           </button>
+          </div>
         </div>
       </aside>
 

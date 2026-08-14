@@ -481,6 +481,65 @@ a{color:var(--sapphire);text-decoration:none}a:hover{color:var(--sapphire-hover)
   }
 }
 
+/* Finance layouts. Auto-fit so the same markup gives five cards across on a
+   desktop and one on a phone, with no breakpoint list to maintain. */
+.fn-fin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+}
+.fn-fin-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.fn-fin-months {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+/* The entry form: two columns of fields, collapsing to one when narrow. */
+.fn-fin-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  align-items: end;
+}
+
+/* The workspace chooser shown straight after signing in. */
+.fn-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  width: 100%;
+  max-width: 760px;
+}
+@media (max-width: 720px) {
+  .fn-hub-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.fn-hub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+  background: #FFFFFF;
+  color: #101B3A;
+  border: 1px solid #A6C5D7;
+  border-top: 4px solid #0F52BA;
+  border-radius: 10px;
+  padding: 24px;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.fn-hub-card:hover,
+.fn-hub-card:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
 /* Tables that scroll sideways when the screen is too narrow for them.
 
    The rows are grids, not a <table>, so each row box is only as wide as the

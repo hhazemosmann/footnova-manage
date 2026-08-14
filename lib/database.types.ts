@@ -1,7 +1,3 @@
-// GENERATED FILE — do not edit by hand.
-// Regenerate with:  npm run supabase:types
-// Source: Supabase project `recruitment-app` (veaazwasmtxanwpmubsu)
-
 export type Json =
   | string
   | number
@@ -11,6 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.15"
   }
@@ -19,6 +17,7 @@ export type Database = {
       app_settings: {
         Row: {
           careers_inbox_email: string | null
+          currency: string
           default_pipeline: string
           email_on_shortlist_add: boolean
           id: number
@@ -29,6 +28,7 @@ export type Database = {
         }
         Insert: {
           careers_inbox_email?: string | null
+          currency?: string
           default_pipeline?: string
           email_on_shortlist_add?: boolean
           id?: number
@@ -39,6 +39,7 @@ export type Database = {
         }
         Update: {
           careers_inbox_email?: string | null
+          currency?: string
           default_pipeline?: string
           email_on_shortlist_add?: boolean
           id?: number
@@ -302,6 +303,117 @@ export type Database = {
           },
         ]
       }
+      finance_categories: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          is_archived: boolean
+          kind: Database["public"]["Enums"]["finance_kind"]
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_archived?: boolean
+          kind: Database["public"]["Enums"]["finance_kind"]
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_archived?: boolean
+          kind?: Database["public"]["Enums"]["finance_kind"]
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_categories_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      finance_transactions: {
+        Row: {
+          amount_cents: number
+          category_id: string
+          counterparty: string
+          created_at: string
+          created_by: string | null
+          description: string
+          id: string
+          is_settled: boolean
+          method: Database["public"]["Enums"]["payment_method"]
+          occurred_on: string
+          tournament_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_cents: number
+          category_id: string
+          counterparty?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_settled?: boolean
+          method?: Database["public"]["Enums"]["payment_method"]
+          occurred_on: string
+          tournament_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_cents?: number
+          category_id?: string
+          counterparty?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string
+          id?: string
+          is_settled?: boolean
+          method?: Database["public"]["Enums"]["payment_method"]
+          occurred_on?: string
+          tournament_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "finance_transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "finance_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_transactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "finance_transactions_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           archived_at: string | null
@@ -386,6 +498,72 @@ export type Database = {
         }
         Relationships: []
       }
+      tournaments: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          budget_expense_cents: number
+          budget_income_cents: number
+          created_at: string
+          created_by: string | null
+          ends_on: string | null
+          id: string
+          location: string
+          name: string
+          notes: string
+          starts_on: string | null
+          status: Database["public"]["Enums"]["tournament_status"]
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          budget_expense_cents?: number
+          budget_income_cents?: number
+          created_at?: string
+          created_by?: string | null
+          ends_on?: string | null
+          id?: string
+          location?: string
+          name: string
+          notes?: string
+          starts_on?: string | null
+          status?: Database["public"]["Enums"]["tournament_status"]
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          budget_expense_cents?: number
+          budget_income_cents?: number
+          created_at?: string
+          created_by?: string | null
+          ends_on?: string | null
+          id?: string
+          location?: string
+          name?: string
+          notes?: string
+          starts_on?: string | null
+          status?: Database["public"]["Enums"]["tournament_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournaments_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tournaments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -407,7 +585,10 @@ export type Database = {
         | "Direct application"
         | "Agency"
         | "Scouting network"
+      finance_kind: "Income" | "Direct cost" | "Operating expense"
       job_status: "Open" | "Closed"
+      payment_method: "Cash" | "Bank transfer" | "Card" | "Cheque" | "Other"
+      tournament_status: "Planned" | "Running" | "Completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -550,7 +731,10 @@ export const Constants = {
         "Agency",
         "Scouting network",
       ],
+      finance_kind: ["Income", "Direct cost", "Operating expense"],
       job_status: ["Open", "Closed"],
+      payment_method: ["Cash", "Bank transfer", "Card", "Cheque", "Other"],
+      tournament_status: ["Planned", "Running", "Completed"],
     },
   },
 } as const

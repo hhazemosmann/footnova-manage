@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "supabase:types": "supabase gen types typescript --project-id veaazwasmtxanwpmubsu > lib/database.types.ts",
+    "supabase:types": "npx --yes supabase@latest gen types typescript --project-id veaazwasmtxanwpmubsu > lib/database.types.ts.new && node -e \"const f=require('fs');if(f.statSync('lib/database.types.ts.new').size<1000)throw new Error('generated types look empty; keeping the existing file');f.renameSync('lib/database.types.ts.new','lib/database.types.ts')\"",
     "supabase:test": "supabase test db --linked",
     "verify": "node -e \"process.env.NEXT_DIST_DIR='.next-verify';require('child_process').execSync('next build',{stdio:'inherit',env:process.env})\""
   },

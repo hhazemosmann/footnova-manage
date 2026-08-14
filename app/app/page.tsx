@@ -19,12 +19,13 @@ export default function AppLoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  /* A signed-in visitor landing here goes straight into the app. */
+  /* A signed-in visitor landing here goes straight to the workspace chooser —
+   * the product has two halves now, and neither is the obvious default. */
   useEffect(() => {
     supabase()
       .auth.getSession()
       .then(({ data }) => {
-        if (data.session) router.replace('/app/overview');
+        if (data.session) router.replace('/app/hub');
       });
   }, [router]);
 
@@ -41,7 +42,7 @@ export default function AppLoginPage() {
       setError(signInError.message);
       return;
     }
-    router.replace('/app/overview');
+    router.replace('/app/hub');
   }
 
   return (
