@@ -122,13 +122,6 @@ export default function PlannerPage() {
           share is taken off at the end, once. Splitting them yourself as well would count the
           partner twice and make it look better than it is.
         </p>
-        <p style={{ margin: 0, fontSize: 12.5, color: '#2C3A5E', lineHeight: 1.5 }}>
-          A cost is <strong>fixed</strong> if the bill is the same whether 4 teams turn up or 40 —
-          prize pool, trophies, an agency fee. It is <strong>per team</strong> if one more team
-          would add to it, like court time booked by the hour. Only per-team costs go in the last
-          box; putting a fixed cost there would make it look like it disappears at low turnout,
-          which is exactly backwards.
-        </p>
 
         <div className="fn-fin-form">
           <Field label="Teams" help="how many you expect" htmlFor="p-teams">
@@ -180,11 +173,7 @@ export default function PlannerPage() {
               style={inputStyle}
             />
           </Field>
-          <Field
-            label="Cost per team"
-            help="what one more team would add — court time, drinks, medals"
-            htmlFor="p-perteam"
-          >
+          <Field label="Cost per team" help="anything that scales with turnout" htmlFor="p-perteam">
             <input
               id="p-perteam"
               inputMode="decimal"
