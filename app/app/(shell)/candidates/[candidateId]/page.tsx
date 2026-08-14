@@ -31,6 +31,7 @@ import {
   restoreCandidate,
   setLinkedinUrl,
   setLocation,
+  setName,
   setNoteDraft,
   setRating,
   setStage,
@@ -80,6 +81,7 @@ export default function CandidateProfilePage({
   const [cvError, setCvError] = useState('');
   const [linkedinDraft, setLinkedinDraft] = useState('');
   const [locationDraft, setLocationDraft] = useState('');
+  const [nameDraft, setNameDraft] = useState('');
   const noteRef = useRef<HTMLTextAreaElement>(null);
 
   const isPdf = cand?.cv?.mimeType === 'application/pdf';
@@ -87,8 +89,9 @@ export default function CandidateProfilePage({
   useEffect(() => {
     setLinkedinDraft(cand?.linkedinUrl ?? '');
     setLocationDraft(cand?.location ?? '');
+    setNameDraft(cand?.name ?? '');
     setCvError('');
-  }, [cand?.id, cand?.linkedinUrl, cand?.location]);
+  }, [cand?.id, cand?.linkedinUrl, cand?.location, cand?.name]);
 
   /* Private bucket: mint a signed URL for the open candidate's CV. One hour,
    * so a plain anchor keeps working while the page is open. */
@@ -541,6 +544,39 @@ export default function CandidateProfilePage({
                 <span style={{ color: '#2C3A5E' }}>Not set</span>
               )
             )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label htmlFor="profile-name" style={label}>
+                EDIT NAME
+              </label>
+              <input
+                id="profile-name"
+                placeholder="Full name"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={() => {
+                  /* An empty box means "I did not mean to change it", so it
+                   * snaps back rather than trying to save nothing. */
+                  if (!nameDraft.trim()) {
+                    setNameDraft(cand.name);
+                    return;
+                  }
+                  if (nameDraft.trim() !== cand.name) void setName(cand.id, nameDraft);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur();
+                }}
+                style={{
+                  border: '1px solid #A6C5D7',
+                  borderRadius: 6,
+                  padding: '9px 11px',
+                  fontFamily: "'Titillium Web',sans-serif",
+                  fontSize: 13.5,
+                  outline: 'none',
+                  width: '100%',
+                }}
+              />
+            </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <label htmlFor="profile-location" style={label}>

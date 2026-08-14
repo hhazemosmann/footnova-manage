@@ -575,6 +575,14 @@ export function setStage(id: string, stage: string) {
   return updateCandidate(id, { stage: stage as Stage });
 }
 
+/* Names get typed in by hand, so they get misspelled. The column is NOT NULL,
+ * so an empty box is refused rather than blanking the record. */
+export function setName(id: string, name: string) {
+  const trimmed = name.trim();
+  if (!trimmed) return Promise.resolve(null);
+  return updateCandidate(id, { full_name: trimmed });
+}
+
 export function setLocation(id: string, location: string) {
   return updateCandidate(id, { location: location.trim() || null });
 }
