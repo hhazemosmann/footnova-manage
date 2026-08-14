@@ -34,10 +34,13 @@ export default function PlannerPage() {
   const router = useRouter();
 
   const [name, setName] = useState('');
-  const [teams, setTeams] = useState('16');
-  const [fee, setFee] = useState('1000');
-  const [prize, setPrize] = useState('6000');
-  const [venue, setVenue] = useState('6300');
+  /* Everything starts at zero. Example figures sitting in the boxes get
+   * mistaken for the app's own suggestion, and worse, a number you did not
+   * type is a number you do not check. */
+  const [teams, setTeams] = useState('0');
+  const [fee, setFee] = useState('0');
+  const [prize, setPrize] = useState('0');
+  const [venue, setVenue] = useState('0');
   /* The other costs are a named list rather than one lump, because "3,000" in
    * a box tells you nothing three weeks later while "referees 1,200,
    * photographer 1,800" tells you where to cut. The model still treats them
@@ -74,7 +77,9 @@ export default function PlannerPage() {
   const profit = Math.round((profitBeforeShare * sharePct) / 100);
 
   const canBreakEven = contribution > 0;
-  const breakEvenTeams = canBreakEven ? Math.ceil(fixed / contribution) : null;
+  /* With nothing to cover you are already level, which keeps the empty form
+   * from opening on a red "never". */
+  const breakEvenTeams = fixed <= 0 ? 0 : canBreakEven ? Math.ceil(fixed / contribution) : null;
   /* A partner takes a share of the profit, and a share of zero is still zero,
    * so the break-even point is the same whether you run it alone or not. */
   const teamsForTarget =
@@ -189,67 +194,76 @@ export default function PlannerPage() {
               style={inputStyle}
             />
           </Field>
-          <Field label="Other costs" help="referees, medical, trophies, marketing" wide>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {others.map((row, i) => (
-                <div key={row.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    aria-label={'Cost ' + (i + 1) + ' name'}
-                    placeholder="Referees"
-                    value={row.name}
-                    autoFocus={row.name === '' && row.amount === ''}
-                    onChange={(e) => updateOther(row.id, { name: e.target.value })}
-                    style={{ ...inputStyle, flex: '2 1 140px' }}
-                  />
-                  <input
-                    aria-label={'Cost ' + (i + 1) + ' amount'}
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={row.amount}
-                    onChange={(e) => updateOther(row.id, { amount: e.target.value })}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') addOther();
-                    }}
-                    style={{ ...inputStyle, flex: '1 1 100px', fontFamily: mono }}
-                  />
-                  <button
-                    type="button"
-                    className="fn-reset-button"
-                    aria-label={'Remove ' + (row.name || 'cost ' + (i + 1))}
-                    onClick={() => setOthers((rows) => rows.filter((r) => r.id !== row.id))}
-                    style={{ fontSize: 16, color: '#C1443D', cursor: 'pointer', padding: '0 6px' }}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {/* Each cost you add is a cell in the same grid as the built-in
+              fields, so a plan with six costs reads as one form rather than a
+              form with a list bolted underneath it. The label is editable —
+              that is the cost's name. */}
+          {others.map((row, i) => (
+            <div
+              key={row.id}
+              style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  aria-label={'Cost ' + (i + 1) + ' name'}
+                  placeholder="NAME THIS COST"
+                  value={row.name}
+                  autoFocus={row.name === '' && row.amount === ''}
+                  onChange={(e) => updateOther(row.id, { name: e.target.value })}
+                  style={{
+                    ...labelStyle,
+                    textTransform: 'uppercase',
+                    border: 'none',
+                    borderBottom: '1px dashed #A6C5D7',
+                    background: 'transparent',
+                    outline: 'none',
+                    padding: '0 0 3px',
+                    flex: 1,
+                    minWidth: 0,
+                  }}
+                />
                 <button
                   type="button"
-                  onClick={addOther}
-                  style={{
-                    fontFamily: 'var(--font-body)',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    padding: '8px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'transparent',
-                    color: '#0F52BA',
-                    border: '1px dashed #0F52BA',
-                    cursor: 'pointer',
-                  }}
+                  className="fn-reset-button"
+                  aria-label={'Remove ' + (row.name || 'cost ' + (i + 1))}
+                  onClick={() => setOthers((rows) => rows.filter((r) => r.id !== row.id))}
+                  style={{ fontSize: 15, color: '#C1443D', cursor: 'pointer', lineHeight: 1 }}
                 >
-                  ＋ Add a cost
+                  ×
                 </button>
-                {others.length > 0 && (
-                  <span style={{ fontFamily: mono, fontSize: 12.5, color: '#2C3A5E' }}>
-                    {others.length} {others.length === 1 ? 'line' : 'lines'} · {money(o)} in total
-                  </span>
-                )}
               </div>
+              <input
+                aria-label={'Cost ' + (i + 1) + ' amount'}
+                inputMode="decimal"
+                placeholder="0"
+                value={row.amount}
+                onChange={(e) => updateOther(row.id, { amount: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addOther();
+                }}
+                style={inputStyle}
+              />
             </div>
-          </Field>
+          ))}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+            <span style={labelStyle}>OTHER COSTS</span>
+            <button
+              type="button"
+              onClick={addOther}
+              style={{
+                ...inputStyle,
+                borderStyle: 'dashed',
+                borderColor: '#0F52BA',
+                color: '#0F52BA',
+                fontWeight: 600,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              ＋ Add a cost
+            </button>
+          </div>
           <Field label="Cost per team" help="anything that scales with turnout" htmlFor="p-perteam">
             <input
               id="p-perteam"
@@ -278,6 +292,13 @@ export default function PlannerPage() {
             />
           </Field>
         </div>
+
+        {others.length > 0 && (
+          <span style={{ fontFamily: mono, fontSize: 12.5, color: '#2C3A5E' }}>
+            Other costs: {others.length} {others.length === 1 ? 'line' : 'lines'} · {money(o)} in
+            total
+          </span>
+        )}
       </section>
 
       {/* ---------------- the verdict ---------------- */}
@@ -285,12 +306,16 @@ export default function PlannerPage() {
         <StatCard
           term="Break-even"
           help="teams you need before you stop losing money"
-          value={canBreakEven ? String(breakEvenTeams) + ' teams' : 'never'}
-          tone={!canBreakEven ? 'bad' : safety !== null && safety < 0 ? 'bad' : 'good'}
+          value={breakEvenTeams === null ? 'never' : String(breakEvenTeams) + ' teams'}
+          tone={
+            breakEvenTeams === null ? 'bad' : safety !== null && safety < 0 ? 'bad' : 'good'
+          }
           footnote={
-            canBreakEven
-              ? 'Fixed costs ' + money(fixed) + ' ÷ ' + money(contribution) + ' per team'
-              : 'Each team costs at least as much as it pays — no turnout fixes that'
+            breakEvenTeams === null
+              ? 'Each team costs at least as much as it pays — no turnout fixes that'
+              : fixed <= 0
+                ? 'Nothing to cover yet — add your costs'
+                : 'Fixed costs ' + money(fixed) + ' ÷ ' + money(contribution) + ' per team'
           }
         />
         <StatCard
