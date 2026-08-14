@@ -34,25 +34,49 @@ export default function OverviewPage() {
   const openJobs = liveJobs(s).filter((j) => j.status === 'Open');
   const shortAll = all.filter((c) => c.short);
 
+  /* The four caption lines under the big numbers were fixture text in the
+     design export — "+2 this month", "+9 this week", "34% of applicants",
+     "3 in next 5 days" — printed regardless of the data, which made the
+     dashboard quietly lie. They are counted from the real records now.
+
+     There is no interview date anywhere in the data model: a stage is a
+     state, not an appointment. So the interview card reports how many people
+     are sitting at that stage rather than inventing a schedule. */
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+
+  const jobsThisMonth = liveJobs(s).filter((j) => new Date(j.postedOn) >= monthStart).length;
+  const candsThisWeek = all.filter((c) => new Date(c.appliedOn) >= weekStart).length;
+  const shortPct = all.length ? Math.round((shortAll.length / all.length) * 100) : 0;
+  const interviewing = all.filter((c) => c.stage === 'Interview').length;
+
   const metrics = [
-    { label: 'OPEN JOBS', value: openJobs.length, delta: '+2 this month', deltaColor: '#2E8B67' },
+    {
+      label: 'OPEN JOBS',
+      value: openJobs.length,
+      delta: jobsThisMonth ? '+' + jobsThisMonth + ' this month' : 'none posted this month',
+      deltaColor: jobsThisMonth ? '#2E8B67' : '#2C3A5E',
+    },
     {
       label: 'TOTAL APPLICANTS',
       value: all.length,
-      delta: '+9 this week',
-      deltaColor: '#2E8B67',
+      delta: candsThisWeek ? '+' + candsThisWeek + ' this week' : 'none added this week',
+      deltaColor: candsThisWeek ? '#2E8B67' : '#2C3A5E',
     },
     {
       label: 'SHORTLISTED',
       value: shortAll.length,
-      delta: '34% of applicants',
+      delta: all.length ? shortPct + '% of applicants' : 'no applicants yet',
       deltaColor: '#2C3A5E',
     },
     {
-      label: 'INTERVIEWS SCHEDULED',
-      value: all.filter((c) => c.stage === 'Interview').length,
-      delta: '3 in next 5 days',
-      deltaColor: '#D6A13A',
+      label: 'AT INTERVIEW STAGE',
+      value: interviewing,
+      delta: interviewing
+        ? interviewing + ' of ' + all.length + ' candidates'
+        : 'nobody at this stage yet',
+      deltaColor: interviewing ? '#D6A13A' : '#2C3A5E',
     },
   ];
 
