@@ -15,31 +15,13 @@ import { supabase } from '@/lib/supabase/client';
 
 const mono = "'IBM Plex Mono',monospace";
 
+/* Two words and nothing else. The earlier version explained each area in a
+ * bulleted list, which is documentation, not a door — and there are only two
+ * of them, so there is nothing to disambiguate. Brand colours carry the
+ * difference: sapphire on ivory, ivory on sapphire. */
 const AREAS = [
-  {
-    key: 'recruiting',
-    icon: '⚽',
-    title: 'Recruiting',
-    tagline: 'Jobs, applicants, CVs and shortlisting',
-    lines: [
-      'Post a job and add the people who apply',
-      'Store CVs and documents against each person',
-      'Move candidates through the hiring stages',
-    ],
-    href: '/app/overview',
-  },
-  {
-    key: 'finance',
-    icon: '₤',
-    title: 'Finance',
-    tagline: 'Money in, money out, and what each tournament made',
-    lines: [
-      'Record what you earn and what you spend',
-      'See profit for the business as a whole',
-      'Work out whether a tournament actually paid',
-    ],
-    href: '/app/finance/dashboard',
-  },
+  { key: 'recruitment', title: 'RECRUITMENT', href: '/app/overview', tone: 'light' },
+  { key: 'finance', title: 'FINANCE', href: '/app/finance/dashboard', tone: 'dark' },
 ];
 
 export default function HubPage() {
@@ -101,64 +83,10 @@ function Hub() {
             key={a.key}
             type="button"
             className="fn-hub-card"
+            data-tone={a.tone}
             onClick={() => router.push(a.href)}
           >
-            <span aria-hidden="true" style={{ fontSize: 30, lineHeight: 1 }}>
-              {a.icon}
-            </span>
-            <span
-              style={{
-                fontFamily: 'Archivo,system-ui,sans-serif',
-                fontWeight: 800,
-                fontSize: 24,
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {a.title}
-            </span>
-            <span style={{ fontSize: 13.5, color: '#2C3A5E', lineHeight: 1.5 }}>{a.tagline}</span>
-
-            <ul
-              style={{
-                margin: '4px 0 0',
-                padding: 0,
-                listStyle: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6,
-              }}
-            >
-              {a.lines.map((l) => (
-                <li
-                  key={l}
-                  style={{
-                    fontSize: 12.5,
-                    color: '#2C3A5E',
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'flex-start',
-                    lineHeight: 1.45,
-                  }}
-                >
-                  <span aria-hidden="true" style={{ color: '#0F52BA', fontWeight: 700 }}>
-                    ·
-                  </span>
-                  {l}
-                </li>
-              ))}
-            </ul>
-
-            <span
-              style={{
-                marginTop: 'auto',
-                paddingTop: 12,
-                fontSize: 13,
-                fontWeight: 700,
-                color: '#0F52BA',
-              }}
-            >
-              Open {a.title} →
-            </span>
+            {a.title}
           </button>
         ))}
       </div>

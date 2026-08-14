@@ -518,26 +518,37 @@ a{color:var(--sapphire);text-decoration:none}a:hover{color:var(--sapphire-hover)
 @media (max-width: 720px) {
   .fn-hub-grid { grid-template-columns: minmax(0, 1fr); }
 }
+/* Just the word. Brand colours do the separating: ivory and sapphire, the
+   two accents that already carry the rest of the product. */
 .fn-hub-card {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  text-align: left;
-  background: #FFFFFF;
-  color: #101B3A;
-  border: 1px solid #A6C5D7;
-  border-top: 4px solid #0F52BA;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  padding: 32px 24px;
+  border: 2px solid transparent;
   border-radius: 10px;
-  padding: 24px;
   cursor: pointer;
-  font-family: inherit;
-  box-shadow: var(--shadow-sm);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  font-family: Archivo, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(24px, 4.5vw, 38px);
+  letter-spacing: 0.02em;
+  text-align: center;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+.fn-hub-card[data-tone='light'] {
+  background: #EFEDDA;
+  color: #101B3A;
+}
+.fn-hub-card[data-tone='dark'] {
+  background: #0F52BA;
+  color: #EFEDDA;
 }
 .fn-hub-card:hover,
 .fn-hub-card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.32);
+  border-color: #A6C5D7;
 }
 
 /* Tables that scroll sideways when the screen is too narrow for them.
