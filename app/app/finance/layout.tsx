@@ -27,6 +27,7 @@ const NAV = [
   { key: 'dashboard', label: 'Dashboard', icon: '◱', href: '/app/finance/dashboard' },
   { key: 'transactions', label: 'Transactions', icon: '≡', href: '/app/finance/transactions' },
   { key: 'tournaments', label: 'Tournaments', icon: '⚑', href: '/app/finance/tournaments' },
+  { key: 'planner', label: 'Planner', icon: '◎', href: '/app/finance/planner' },
   { key: 'setup', label: 'Setup', icon: '◧', href: '/app/finance/setup' },
 ];
 
@@ -49,6 +50,7 @@ function FinanceShell({ children }: { children: React.ReactNode }) {
     dashboard: '',
     transactions: s.txns.length ? String(s.txns.length) : '',
     tournaments: liveTournaments(s).length ? String(liveTournaments(s).length) : '',
+    planner: '',
     setup: '',
   };
 
