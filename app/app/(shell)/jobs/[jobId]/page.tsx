@@ -6,14 +6,14 @@
 
 import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { STAGES } from '@/lib/types';
+import { PIPELINE, STAGES, Stage } from '@/lib/types';
 import {
   archiveJob,
   chip,
   openJobEditModal,
   jobLiveCands,
   openCandModal,
-  rejectCandidate,
+  panelNext,
   setRatingFilter,
   setStageFilter,
   stars,
@@ -28,7 +28,24 @@ const mono = "'IBM Plex Mono',monospace";
 
 /* Source grid definition, shared by the header row and the data rows. */
 const ROW_GRID =
-  'minmax(180px,2fr) minmax(78px,1fr) minmax(92px,1fr) minmax(80px,1.1fr) minmax(60px,0.9fr) 200px';
+  'minmax(180px,2fr) minmax(78px,1fr) minmax(92px,1fr) minmax(80px,1.1fr) minmax(60px,0.9fr) 230px';
+
+/* Rejected sits outside the forward path and Hired is the end of it, so
+   neither has a next stage to move to. */
+function onPipeline(stage: Stage): boolean {
+  const i = (PIPELINE as readonly string[]).indexOf(stage);
+  return i >= 0 && i < PIPELINE.length - 1;
+}
+
+/* The button says where the candidate is going, not merely that it moves
+   them — one glance tells you what pressing it will do. */
+function nextLabel(stage: Stage): string {
+  const steps = PIPELINE as readonly string[];
+  const i = steps.indexOf(stage);
+  if (i < 0) return 'Rejected';
+  if (i >= steps.length - 1) return 'Hired';
+  return '→ ' + steps[i + 1];
+}
 
 export default function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = use(params);
@@ -385,8 +402,16 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               <Button variant="secondary" size="sm" onClick={() => toggleShortlist(r.cand)}>
                 {r.shortLabel}
               </Button>
-              <Button variant="danger" size="sm" onClick={() => rejectCandidate(r.cand.id)}>
-                Reject
+              {/* Moving someone forward is the action taken dozens of times a
+                  day; rejecting is done once per candidate and is still on
+                  their profile. So the row carries the frequent one. */}
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={s.busy || !onPipeline(r.cand.stage)}
+                onClick={() => panelNext(r.cand)}
+              >
+                {nextLabel(r.cand.stage)}
               </Button>
             </div>
           </div>
