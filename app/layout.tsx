@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'FootNova Recruiting',
-  description: 'FootNova recruitment management — jobs, applicants, CVs and shortlisting.',
+  /* The workspace covers recruiting and finance now, so the tab no longer
+     names only half of it. */
+  title: 'FootNova Management',
+  description: 'FootNova management — recruiting and finance in one workspace.',
   icons: { icon: '/footnova-logo.png' },
 };
 
