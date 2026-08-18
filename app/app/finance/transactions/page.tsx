@@ -23,6 +23,7 @@ import {
   liveTournaments,
   parseAmount,
   toggleSettled,
+  totalsFor,
   tournamentById,
   useFinance,
 } from '@/lib/finance';
@@ -72,6 +73,10 @@ function Transactions() {
   const [kindFilter, setKindFilter] = useState('All');
   const [tournamentFilter, setTournamentFilter] = useState('All');
   const [text, setText] = useState('');
+  /* A date window, either end optional. ISO dates compare correctly as
+   * strings, so no parsing is needed and no timezone can shift a boundary. */
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   const chosen = categoryId ? categoryById(s, categoryId) : undefined;
 
@@ -83,13 +88,21 @@ function Transactions() {
       if (tournamentFilter === 'None' && t.tournamentId) return false;
       if (tournamentFilter !== 'All' && tournamentFilter !== 'None' && t.tournamentId !== tournamentFilter)
         return false;
+      if (from && t.occurredOn < from) return false;
+      if (to && t.occurredOn > to) return false;
       if (!needle) return true;
       const hay = [t.description, t.counterparty, cat?.name ?? '', t.method].join(' ').toLowerCase();
       return hay.includes(needle);
     });
-  }, [s, kindFilter, tournamentFilter, text]);
+  }, [s, kindFilter, tournamentFilter, text, from, to]);
 
   const money = (cents: number) => formatMoney(cents, s.currency);
+
+  /* Any filter at all is on. Used to decide whether the period summary is
+   * worth showing — with nothing filtered it would just repeat the dashboard. */
+  const filtered =
+    kindFilter !== 'All' || tournamentFilter !== 'All' || text.trim() !== '' || !!from || !!to;
+  const shown = totalsFor(s, rows);
 
   async function submit() {
     setFormError('');
@@ -329,6 +342,31 @@ function Transactions() {
               </option>
             ))}
           </select>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label htmlFor="filter-from" style={{ ...labelStyle, whiteSpace: 'nowrap' }}>
+              FROM
+            </label>
+            <input
+              id="filter-from"
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+              style={{ ...inputStyle, width: 'auto' }}
+            />
+            <label htmlFor="filter-to" style={{ ...labelStyle, whiteSpace: 'nowrap' }}>
+              TO
+            </label>
+            <input
+              id="filter-to"
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              style={{ ...inputStyle, width: 'auto' }}
+            />
+          </div>
+
           <input
             aria-label="Search entries"
             placeholder="Search notes, people, categories"
@@ -336,10 +374,59 @@ function Transactions() {
             onChange={(e) => setText(e.target.value)}
             style={{ ...inputStyle, width: 'auto', flex: 1, minWidth: 180 }}
           />
+
+          {filtered && (
+            <button
+              type="button"
+              className="fn-reset-button"
+              onClick={() => {
+                setKindFilter('All');
+                setTournamentFilter('All');
+                setText('');
+                setFrom('');
+                setTo('');
+              }}
+              style={{ fontSize: 12.5, fontWeight: 600, color: '#0F52BA', cursor: 'pointer' }}
+            >
+              Clear filters
+            </button>
+          )}
+
           <span style={{ marginLeft: 'auto', fontSize: 12.5, color: '#2C3A5E' }}>
             {rows.length} of {s.txns.length} entries
           </span>
         </div>
+
+        {/* What the rows you are looking at add up to. Without this a date
+            window only hides rows; with it, it answers "how did April go". */}
+        {filtered && rows.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              gap: 20,
+              flexWrap: 'wrap',
+              padding: '10px 18px',
+              borderBottom: '1px solid #DDE6F3',
+              background: '#F7F9FC',
+            }}
+          >
+            <Summary label="Money in" value={money(shown.income)} color="#2E8B67" />
+            <Summary
+              label="Money out"
+              value={money(shown.directCosts + shown.operatingExpenses)}
+              color="#C1443D"
+            />
+            <Summary
+              label="Net"
+              value={money(shown.netProfit)}
+              color={shown.netProfit < 0 ? '#C1443D' : '#2E8B67'}
+              strong
+            />
+            {shown.capitalIn > 0 && (
+              <Summary label="You put in" value={money(shown.capitalIn)} color="#0F52BA" />
+            )}
+          </div>
+        )}
 
         {rows.length === 0 ? (
           <EmptyState>
@@ -476,5 +563,35 @@ function Transactions() {
         .
       </p>
     </div>
+  );
+}
+
+/* One figure in the period summary strip. */
+function Summary({
+  label,
+  value,
+  color,
+  strong,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  strong?: boolean;
+}) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
+      <span style={{ ...labelStyle, whiteSpace: 'nowrap' }}>{label.toUpperCase()}</span>
+      <span
+        style={{
+          fontFamily: mono,
+          fontSize: strong ? 14 : 13,
+          fontWeight: strong ? 700 : 600,
+          color,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {value}
+      </span>
+    </span>
   );
 }
