@@ -7,14 +7,21 @@
  * Replaces the demo-data module, which is gone now that the real database
  * is the source of truth. */
 
+/* The pipeline in order, with Rejected last: it is an outcome rather than a
+   step, so it never appears in the forward progression but is still a stage a
+   candidate can be in. Interview and Offer are one step — in practice the
+   conversation and the offer happen together. */
 export const STAGES = [
   'Applied',
   'Screening',
-  'Interview',
-  'Offer',
+  'Email',
+  'Interview/Offer',
   'Hired',
   'Rejected',
 ] as const;
+
+/* The forward path only, which is what "move to the next stage" walks. */
+export const PIPELINE = ['Applied', 'Screening', 'Email', 'Interview/Offer', 'Hired'] as const;
 
 export type Stage = (typeof STAGES)[number];
 
@@ -31,8 +38,8 @@ export type Source = (typeof SOURCES)[number];
 export const TONE: Record<Stage, string> = {
   Applied: 'neutral',
   Screening: 'sapphire',
-  Interview: 'warning',
-  Offer: 'success',
+  Email: 'sapphire',
+  'Interview/Offer': 'warning',
   Hired: 'success',
   Rejected: 'danger',
 };
@@ -40,8 +47,8 @@ export const TONE: Record<Stage, string> = {
 export const SEGC: Record<Stage, string> = {
   Applied: '#A6C5D7',
   Screening: '#0F52BA',
-  Interview: '#D6A13A',
-  Offer: '#2E8B67',
+  Email: '#2C3A5E',
+  'Interview/Offer': '#D6A13A',
   Hired: '#101B3A',
   Rejected: '#C1443D',
 };

@@ -62,7 +62,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
   const stats = [
     { k: 'APPLICANTS', v: live.length },
     { k: 'SHORTLISTED', v: live.filter((c) => c.short).length },
-    { k: 'IN INTERVIEW', v: live.filter((c) => c.stage === 'Interview').length },
+    { k: 'INTERVIEW/OFFER', v: live.filter((c) => c.stage === 'Interview/Offer').length },
   ];
 
   return (

@@ -575,8 +575,8 @@ export type Database = {
       candidate_stage:
         | "Applied"
         | "Screening"
-        | "Interview"
-        | "Offer"
+        | "Email"
+        | "Interview/Offer"
         | "Hired"
         | "Rejected"
       entity_source:
@@ -724,8 +724,8 @@ export const Constants = {
       candidate_stage: [
         "Applied",
         "Screening",
-        "Interview",
-        "Offer",
+        "Email",
+        "Interview/Offer",
         "Hired",
         "Rejected",
       ],

@@ -7,20 +7,19 @@ import { useRouter } from 'next/navigation';
 import { ACCENT_COLOR, FUNNEL_MODE, SHOW_CONVERSION } from '@/lib/design-props';
 import { jobLiveCands, liveCands, liveJobs, segments, selectJob } from '@/lib/store';
 import { useAppState } from '@/lib/use-store';
+import { PIPELINE } from '@/lib/types';
 
 const mono = "'IBM Plex Mono',monospace";
-/* The forward pipeline, used for the cumulative "reached" counts. Offer is
-   still a real stage in the app — it is just no longer its own funnel column,
-   so anyone at Offer counts as having reached Screening and Interview. */
-const PIPELINE = ['Applied', 'Screening', 'Interview', 'Offer', 'Hired'];
-
-/* The columns actually shown, in the order requested: the total first, then
-   rejected, then the pipeline stages that matter. */
+/* The columns shown, in the order requested: the total first, then rejected,
+   then each step of the pipeline. The cumulative "reached" counts come from
+   PIPELINE in lib/types, so the funnel cannot drift out of step with the
+   stages themselves. */
 const FUNNEL_COLUMNS = [
   { key: 'Applied', label: 'Total applied' },
   { key: 'Rejected', label: 'Rejected' },
   { key: 'Screening', label: 'Screening' },
-  { key: 'Interview', label: 'Interview' },
+  { key: 'Email', label: 'Email' },
+  { key: 'Interview/Offer', label: 'Interview/Offer' },
   { key: 'Hired', label: 'Hired' },
 ] as const;
 
@@ -49,7 +48,7 @@ export default function OverviewPage() {
   const jobsThisMonth = liveJobs(s).filter((j) => new Date(j.postedOn) >= monthStart).length;
   const candsThisWeek = all.filter((c) => new Date(c.appliedOn) >= weekStart).length;
   const shortPct = all.length ? Math.round((shortAll.length / all.length) * 100) : 0;
-  const interviewing = all.filter((c) => c.stage === 'Interview').length;
+  const interviewing = all.filter((c) => c.stage === 'Interview/Offer').length;
 
   const metrics = [
     {
@@ -71,7 +70,7 @@ export default function OverviewPage() {
       deltaColor: '#2C3A5E',
     },
     {
-      label: 'AT INTERVIEW STAGE',
+      label: 'AT INTERVIEW/OFFER',
       value: interviewing,
       delta: interviewing
         ? interviewing + ' of ' + all.length + ' candidates'
@@ -81,21 +80,22 @@ export default function OverviewPage() {
   ];
 
   /* The funnel block. Columns are Total applied · Rejected · Screening ·
-     Interview · Hired.
+     Email · Interview/Offer · Hired.
 
      Total applied is everyone. Rejected is an absolute count — it sits
      outside the forward path, so it is not cumulative. The three pipeline
-     columns are cumulative "reached" counts: someone at Interview counts
-     toward Screening too, which is what makes the drop-off percentages
-     meaningful. */
+     columns are cumulative "reached" counts: someone at Interview/Offer
+     counts toward Screening and Email too, which is what makes the drop-off
+     percentages meaningful. */
   const rejected = all.filter((c) => c.stage === 'Rejected').length;
-  const pipelineIndex = (c: { stage: string }) => PIPELINE.indexOf(c.stage);
+  const steps: readonly string[] = PIPELINE;
+  const pipelineIndex = (c: { stage: string }) => steps.indexOf(c.stage);
 
   const countFor = (key: string) => {
     if (key === 'Applied') return all.length;
     if (key === 'Rejected') return rejected;
     if (FUNNEL_MODE === 'current') return all.filter((c) => c.stage === key).length;
-    const i = PIPELINE.indexOf(key);
+    const i = steps.indexOf(key);
     return all.filter((c) => pipelineIndex(c) >= i).length;
   };
 
@@ -105,9 +105,9 @@ export default function OverviewPage() {
   const funnel = FUNNEL_COLUMNS.map((col, i) => {
     const n = counts[i];
     const pct = Math.round((n / fmax) * 100);
-    /* Drop-off only makes sense along the forward path, so it is shown for
-       Interview and Hired and suppressed on Rejected and the column after
-       it, where the previous number is not a parent of this one. */
+    /* Drop-off only makes sense along the forward path, so it is suppressed
+       on Rejected and on Screening, the column straight after it, where the
+       previous number is not a parent of this one. */
     const isPipelineStep = i >= 3;
     const prev = isPipelineStep ? counts[i - 1] : 0;
     return {

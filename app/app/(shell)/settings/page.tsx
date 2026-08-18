@@ -10,10 +10,13 @@ import { useEffect, useState } from 'react';
 import { updateSettings } from '@/lib/store';
 import { useAppState } from '@/lib/use-store';
 import { Input, Select, Switch } from '@/components/ds';
+import { PIPELINE } from '@/lib/types';
 
+/* Built from the real pipeline rather than typed out, so renaming a stage
+   cannot leave this menu describing a process that no longer exists. */
 const PIPELINE_OPTIONS = [
-  'Applied → Screening → Interview → Offer → Hired',
-  'Applied → Interview → Offer',
+  PIPELINE.join(' → '),
+  PIPELINE.filter((st) => st !== 'Email').join(' → '),
 ];
 
 export default function SettingsPage() {

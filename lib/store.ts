@@ -24,6 +24,7 @@ import {
   Job,
   Note,
   SEGC,
+  PIPELINE,
   STAGES,
   Settings,
   Source,
@@ -553,10 +554,15 @@ export function rejectCandidate(id: string) {
   return updateCandidate(id, { stage: 'Rejected', is_shortlisted: false });
 }
 
-/* Source: panelNext clamps at index 4 ('Hired') and never lands on Rejected. */
+/* Source: "next stage" walks the forward path and stops at Hired, never
+ * landing on Rejected. Driven by PIPELINE rather than an index into STAGES, so
+ * adding or merging a stage cannot silently move where it stops. */
 export function panelNext(cand: Candidate) {
-  const i = STAGES.indexOf(cand.stage);
-  return updateCandidate(cand.id, { stage: STAGES[Math.min(i + 1, 4)] });
+  const i = PIPELINE.indexOf(cand.stage as (typeof PIPELINE)[number]);
+  /* Someone at Rejected is not on the path; leave them where they are. */
+  if (i === -1) return Promise.resolve(null);
+  const next = PIPELINE[Math.min(i + 1, PIPELINE.length - 1)];
+  return updateCandidate(cand.id, { stage: next });
 }
 
 export function panelShortlist(id: string) {

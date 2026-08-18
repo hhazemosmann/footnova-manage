@@ -229,7 +229,7 @@ export default function JobsPage() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <span style={{ fontFamily: mono, fontSize: 19, fontWeight: 600 }}>
-                    {jobLiveCands(j).filter((c) => c.stage === 'Interview').length}
+                    {jobLiveCands(j).filter((c) => c.stage === 'Interview/Offer').length}
                   </span>
                   <span style={{ fontSize: 10, letterSpacing: '0.08em', color: '#2C3A5E' }}>
                     INTERVIEWS
