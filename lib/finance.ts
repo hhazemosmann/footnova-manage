@@ -18,7 +18,12 @@ import { supabase } from './supabase/client';
 import { errorMessage } from './store';
 import type { Tables, TablesUpdate } from './database.types';
 
-export type FinanceKind = 'Income' | 'Direct cost' | 'Operating expense' | 'Owner capital';
+export type FinanceKind =
+  | 'Income'
+  | 'Direct cost'
+  | 'Operating expense'
+  | 'Owner capital'
+  | 'Owner drawing';
 export type PaymentMethod = 'Cash' | 'Bank transfer' | 'Card' | 'Cheque' | 'Other';
 export type TournamentStatus = 'Planned' | 'Running' | 'Completed';
 
@@ -27,6 +32,7 @@ export const KINDS: readonly FinanceKind[] = [
   'Direct cost',
   'Operating expense',
   'Owner capital',
+  'Owner drawing',
 ];
 
 /* The three kinds an income statement is built from. Owner capital is money
@@ -53,6 +59,7 @@ export const KIND_HELP: Record<FinanceKind, string> = {
   'Direct cost': 'money spent on putting on a specific event',
   'Operating expense': 'money spent running the business itself',
   'Owner capital': 'money you put in yourself — kept out of profit',
+  'Owner drawing': 'money you took out for yourself — kept out of profit',
 };
 
 /* True for anything that increases the bank balance, whether it was earned or
@@ -320,9 +327,10 @@ export interface Totals {
   /* Agreed but not yet moved. */
   owedToYou: number;
   youOwe: number;
-  /* Money put in from the owner's own pocket. Deliberately outside every
-   * figure above: it is equity, not earnings. */
+  /* Money put in from the owner's own pocket, and money taken back out.
+   * Deliberately outside every figure above: both are equity, not earnings. */
   capitalIn: number;
+  drawings: number;
   count: number;
 }
 
@@ -333,12 +341,15 @@ export function totalsFor(s: FinanceState, txns: Txn[]): Totals {
   let owedToYou = 0;
   let youOwe = 0;
   let capitalIn = 0;
+  let drawings = 0;
 
   for (const t of txns) {
     const kind = kindOf(s, t);
     if (!kind) continue;
     if (kind === 'Owner capital') {
       capitalIn += t.amount;
+    } else if (kind === 'Owner drawing') {
+      drawings += t.amount;
     } else if (kind === 'Income') {
       income += t.amount;
       if (!t.settled) owedToYou += t.amount;
@@ -361,6 +372,7 @@ export function totalsFor(s: FinanceState, txns: Txn[]): Totals {
     owedToYou,
     youOwe,
     capitalIn,
+    drawings,
     count: txns.length,
   };
 }
@@ -372,6 +384,30 @@ export const totalsForTournamentHelp =
   'These figures cover everything you have recorded, including entries marked as not yet paid, ' +
   'so they show what you have earned and committed rather than what has cleared your bank. ' +
   'A tournament’s profit counts only the entries tagged to it.';
+
+/* What the business owes its owner — the standard equity identity:
+ *
+ *     capital put in  −  drawings taken out  +  profit kept in the business
+ *
+ * Retained profit is never entered by hand. It is the running total of every
+ * profit the business has ever made, which the ledger already knows; typing
+ * it in as well would count the same money twice. */
+export interface Stake {
+  capitalIn: number;
+  drawings: number;
+  retained: number;
+  total: number;
+}
+
+export function ownerStake(s: FinanceState): Stake {
+  const t = totalsFor(s, s.txns);
+  return {
+    capitalIn: t.capitalIn,
+    drawings: t.drawings,
+    retained: t.netProfit,
+    total: t.capitalIn - t.drawings + t.netProfit,
+  };
+}
 
 export function txnsOfTournament(s: FinanceState, tournamentId: string): Txn[] {
   return s.txns.filter((t) => t.tournamentId === tournamentId);
@@ -436,9 +472,9 @@ export function monthlySeries(s: FinanceState, months = 6): MonthPoint[] {
     const point = index.get(t.occurredOn.slice(0, 7));
     if (!point) continue;
     const kind = kindOf(s, t);
-    /* Capital is left out so the trend shows how the business is trading,
-     * not how much has been propped up. */
-    if (!kind || kind === 'Owner capital') continue;
+    /* Capital and drawings are left out so the trend shows how the business
+     * is trading, not how much has been propped up or taken home. */
+    if (!kind || kind === 'Owner capital' || kind === 'Owner drawing') continue;
     if (kind === 'Income') point.income += t.amount;
     else point.spend += t.amount;
   }

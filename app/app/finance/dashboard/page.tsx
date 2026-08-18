@@ -14,6 +14,7 @@ import {
   formatMoney,
   liveTournaments,
   monthlySeries,
+  ownerStake,
   totalsFor,
   totalsForTournamentHelp,
   txnsOfTournament,
@@ -31,6 +32,7 @@ export default function FinanceDashboard() {
 
   const t = totalsFor(s, s.txns);
   const months = monthlySeries(s, 6);
+  const stake = ownerStake(s);
   const topDirect = byCategory(s, s.txns, 'Direct cost').slice(0, 5);
   const topOperating = byCategory(s, s.txns, 'Operating expense').slice(0, 5);
   const topIncome = byCategory(s, s.txns, 'Income').slice(0, 5);
@@ -113,17 +115,74 @@ export default function FinanceDashboard() {
           footnote="Accountants call this accounts payable"
         />
         <StatCard
-          term="You have put in"
-          help="your own money, invested into the business"
-          value={money(t.capitalIn)}
-          footnote="Capital — the business owes this back to you, so it is not counted as profit"
-        />
-        <StatCard
           term="Entries recorded"
           help="how many lines are in the books"
           value={String(t.count)}
         />
       </div>
+
+      {/* ---------------- the owner's own position ---------------- */}
+      <section style={{ ...cardStyle, borderLeft: '4px solid #0F52BA' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <h2 style={{ fontFamily: 'Archivo,sans-serif', fontWeight: 700, fontSize: 16, margin: 0 }}>
+            Your stake
+          </h2>
+          <span style={{ fontSize: 12, color: '#2C3A5E' }}>
+            How you stand with the business, separate from how the business is trading
+          </span>
+        </div>
+
+        <StakeLine
+          label="Money you have put in"
+          help="capital — out of your own pocket"
+          value={money(stake.capitalIn)}
+        />
+        <StakeLine
+          label="Money you have taken out"
+          help="drawings — for yourself, not a business cost"
+          value={'− ' + money(stake.drawings)}
+        />
+        <StakeLine
+          label="Profit kept in the business"
+          help="retained profit — every profit ever made, added up. Never typed in; it is worked out"
+          value={money(stake.retained)}
+          negative={stake.retained < 0}
+        />
+
+        <div
+          style={{
+            borderTop: '1px solid #A6C5D7',
+            paddingTop: 12,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            gap: 12,
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 700 }}>
+            What the business owes you{' '}
+            <span style={{ fontWeight: 400, color: '#2C3A5E' }}>(your stake in it)</span>
+          </span>
+          <span
+            style={{
+              fontFamily: mono,
+              fontSize: 19,
+              fontWeight: 700,
+              color: stake.total < 0 ? '#C1443D' : '#2E8B67',
+            }}
+          >
+            {money(stake.total)}
+          </span>
+        </div>
+
+        {stake.total < 0 && (
+          <span style={{ fontSize: 12, color: '#C1443D', lineHeight: 1.5 }}>
+            Negative means the business has spent more than you put in, so there is nothing to
+            take out — anything you withdraw now is borrowed against future profit.
+          </span>
+        )}
+      </section>
 
       {/* ---------------- six month trend ---------------- */}
       <section style={cardStyle}>
@@ -387,5 +446,44 @@ function BreakdownCard({
         ))
       )}
     </section>
+  );
+}
+
+/* One line of the owner's stake, with its term explained in place. */
+function StakeLine({
+  label,
+  help,
+  value,
+  negative,
+}: {
+  label: string;
+  help: string;
+  value: string;
+  negative?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        gap: 14,
+        flexWrap: 'wrap',
+      }}
+    >
+      <span style={{ fontSize: 13.5, minWidth: 0 }}>
+        {label} <span style={{ color: '#2C3A5E' }}>({help})</span>
+      </span>
+      <span
+        style={{
+          fontFamily: mono,
+          fontSize: 13.5,
+          color: negative ? '#C1443D' : '#101B3A',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {value}
+      </span>
+    </div>
   );
 }

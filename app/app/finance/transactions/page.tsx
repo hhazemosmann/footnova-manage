@@ -278,6 +278,8 @@ function Transactions() {
               under {chosen.name}.
               {chosen.kind === 'Owner capital' &&
                 ' It is money you put in, so it is kept out of the profit figures.'}
+              {chosen.kind === 'Owner drawing' &&
+                ' It is money you took out for yourself, not a business cost, so it is kept out of the profit figures.'}
             </span>
           )}
 
@@ -327,6 +329,7 @@ function Transactions() {
             <option value="Direct cost">Event costs</option>
             <option value="Operating expense">Running costs</option>
             <option value="Owner capital">Money you put in</option>
+            <option value="Owner drawing">Money you took out</option>
           </select>
           <select
             aria-label="Tournament"
@@ -425,6 +428,9 @@ function Transactions() {
             {shown.capitalIn > 0 && (
               <Summary label="You put in" value={money(shown.capitalIn)} color="#0F52BA" />
             )}
+            {shown.drawings > 0 && (
+              <Summary label="You took out" value={money(shown.drawings)} color="#0F52BA" />
+            )}
           </div>
         )}
 
@@ -462,6 +468,7 @@ function Transactions() {
                 const cat = categoryById(s, t.categoryId);
                 const income = cat ? isMoneyIn(cat.kind) : false;
                 const capital = cat?.kind === 'Owner capital';
+                const drawing = cat?.kind === 'Owner drawing';
                 const tour = t.tournamentId ? tournamentById(s, t.tournamentId) : undefined;
                 return (
                   <div
@@ -481,11 +488,18 @@ function Transactions() {
                       <span
                         style={{
                           fontSize: 11,
-                          color: capital ? '#0F52BA' : income ? '#2E8B67' : '#C1443D',
+                          color:
+                            capital || drawing ? '#0F52BA' : income ? '#2E8B67' : '#C1443D',
                           fontWeight: 600,
                         }}
                       >
-                        {capital ? 'Money you put in' : income ? 'Money in' : 'Money out'}
+                        {capital
+                          ? 'Money you put in'
+                          : drawing
+                            ? 'Money you took out'
+                            : income
+                              ? 'Money in'
+                              : 'Money out'}
                         {!t.settled && ' · not paid yet'}
                       </span>
                     </div>
@@ -507,7 +521,7 @@ function Transactions() {
                         fontSize: 13.5,
                         fontWeight: 700,
                         textAlign: 'right',
-                        color: capital ? '#0F52BA' : income ? '#2E8B67' : '#C1443D',
+                        color: capital || drawing ? '#0F52BA' : income ? '#2E8B67' : '#C1443D',
                         whiteSpace: 'nowrap',
                       }}
                     >
