@@ -39,6 +39,7 @@ import {
   uploadCv,
 } from '@/lib/store';
 import { Badge, Button, Select } from '@/components/ds';
+import StageBadge from '@/components/StageBadge';
 import CandidateDocuments from '@/components/CandidateDocuments';
 import SectionBoundary from '@/components/SectionBoundary';
 import { CV_ACCEPT, CV_MAX_BYTES, STAGES, Stage, TONE } from '@/lib/types';
@@ -196,7 +197,7 @@ export default function CandidateProfilePage({
             >
               {cand.name}
             </h1>
-            <Badge tone={TONE[cand.stage]}>{cand.stage}</Badge>
+            <StageBadge stage={cand.stage} />
             {cand.short && <Badge tone="sapphire">Shortlisted</Badge>}
             {archived && <Badge tone="neutral">Archived</Badge>}
           </div>

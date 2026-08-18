@@ -7,6 +7,7 @@ import { liveCands, stars } from '@/lib/store';
 import { buildRow } from '@/lib/rows';
 import { useAppState } from '@/lib/use-store';
 import { Badge, Button } from '@/components/ds';
+import StageBadge from '@/components/StageBadge';
 
 const mono = "'IBM Plex Mono',monospace";
 const ROW_GRID = 'minmax(160px,1.6fr) minmax(120px,1.4fr) minmax(92px,1fr) minmax(70px,1fr) 120px';
@@ -121,7 +122,7 @@ export default function ShortlistPage() {
             </div>
             <span style={{ fontSize: 13, color: '#2C3A5E' }}>{r.jobTitle}</span>
             <span>
-              <Badge tone={r.tone}>{r.cand.stage}</Badge>
+              <StageBadge stage={r.cand.stage} />
             </span>
             <span
               style={{ fontFamily: mono, fontSize: 14, color: '#D6A13A', letterSpacing: '1px' }}

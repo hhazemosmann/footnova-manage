@@ -27,6 +27,7 @@ import {
   stars,
 } from '@/lib/store';
 import { Badge, Button } from '@/components/ds';
+import StageBadge from '@/components/StageBadge';
 import { TONE } from '@/lib/types';
 import { formatDate } from '@/lib/format';
 
@@ -284,7 +285,7 @@ export default function ArchivePage() {
                 </div>
                 <span style={{ fontSize: 13, color: '#2C3A5E' }}>{c.jobTitle}</span>
                 <span>
-                  <Badge tone={TONE[c.stage]}>{c.stage}</Badge>
+                  <StageBadge stage={c.stage} />
                 </span>
                 <span
                   style={{ fontFamily: mono, fontSize: 14, color: '#D6A13A', letterSpacing: '1px' }}

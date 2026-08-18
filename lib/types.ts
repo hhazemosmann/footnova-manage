@@ -44,13 +44,36 @@ export const TONE: Record<Stage, string> = {
   Rejected: 'danger',
 };
 
+/* One colour per stage, used by every place a stage is shown — the badge on a
+   row, the next-stage button, the funnel bars, the per-job progress strip.
+   Defined once so those can never drift apart and mean different things.
+
+   The progression reads as a journey: blue while they are still a name on a
+   list, warming through two golds as the conversation gets real, green when
+   they sign, red if it ends. Foreground is stated per stage rather than
+   assumed, because ivory on a mid gold is unreadable. */
+export interface StageColor {
+  bg: string;
+  fg: string;
+}
+
+export const STAGE_COLOR: Record<Stage, StageColor> = {
+  Applied: { bg: '#0F52BA', fg: '#EFEDDA' },
+  Screening: { bg: '#2C3A5E', fg: '#EFEDDA' },
+  Email: { bg: '#E8B84B', fg: '#101B3A' },
+  'Interview/Offer': { bg: '#D6A13A', fg: '#101B3A' },
+  Hired: { bg: '#2E8B67', fg: '#EFEDDA' },
+  Rejected: { bg: '#C1443D', fg: '#EFEDDA' },
+};
+
+/* The funnel and progress bars take their fill from the same map. */
 export const SEGC: Record<Stage, string> = {
-  Applied: '#A6C5D7',
-  Screening: '#0F52BA',
-  Email: '#2C3A5E',
-  'Interview/Offer': '#D6A13A',
-  Hired: '#101B3A',
-  Rejected: '#C1443D',
+  Applied: STAGE_COLOR.Applied.bg,
+  Screening: STAGE_COLOR.Screening.bg,
+  Email: STAGE_COLOR.Email.bg,
+  'Interview/Offer': STAGE_COLOR['Interview/Offer'].bg,
+  Hired: STAGE_COLOR.Hired.bg,
+  Rejected: STAGE_COLOR.Rejected.bg,
 };
 
 export const AVA = ['#0F52BA', '#101B3A', '#2C3A5E', '#2E8B67', '#C1443D', '#0D46A0'];

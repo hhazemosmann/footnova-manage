@@ -6,7 +6,8 @@
 
 import { use, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { PIPELINE, STAGES, Stage } from '@/lib/types';
+import { PIPELINE, STAGES, STAGE_COLOR, Stage } from '@/lib/types';
+import StageBadge from '@/components/StageBadge';
 import {
   archiveJob,
   chip,
@@ -28,13 +29,35 @@ const mono = "'IBM Plex Mono',monospace";
 
 /* Source grid definition, shared by the header row and the data rows. */
 const ROW_GRID =
-  'minmax(180px,2fr) minmax(78px,1fr) minmax(92px,1fr) minmax(80px,1.1fr) minmax(60px,0.9fr) 230px';
+  'minmax(180px,2fr) minmax(78px,1fr) minmax(110px,1fr) minmax(80px,1.1fr) minmax(60px,0.9fr) 320px';
 
 /* Rejected sits outside the forward path and Hired is the end of it, so
    neither has a next stage to move to. */
 function onPipeline(stage: Stage): boolean {
   const i = (PIPELINE as readonly string[]).indexOf(stage);
   return i >= 0 && i < PIPELINE.length - 1;
+}
+
+/* Coloured by the stage it sends them to, so the button and the pill it will
+   turn into are the same colour. At the two dead ends it shows the stage they
+   are already in. Fixed width and no wrapping, so a column of these lines up
+   however long the stage name is. */
+function nextButtonStyle(stage: Stage): React.CSSProperties {
+  const steps = PIPELINE as readonly string[];
+  const i = steps.indexOf(stage);
+  const target = (i >= 0 && i < steps.length - 1 ? steps[i + 1] : stage) as Stage;
+  const c = STAGE_COLOR[target];
+  return {
+    background: c.bg,
+    color: c.fg,
+    minWidth: 142,
+    justifyContent: 'center',
+    whiteSpace: 'nowrap',
+    border: '2px solid transparent',
+    /* Disabled already dims to 0.5; keep it fully legible instead, since the
+       colour is carrying the meaning. */
+    opacity: 1,
+  };
 }
 
 /* The button says where the candidate is going, not merely that it moves
@@ -379,7 +402,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
               {r.cand.date}
             </span>
             <span>
-              <Badge tone={r.tone}>{r.cand.stage}</Badge>
+              <StageBadge stage={r.cand.stage} />
             </span>
             <span
               style={{ fontFamily: mono, fontSize: 14, color: '#D6A13A', letterSpacing: '1px' }}
@@ -395,11 +418,35 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
             >
               {r.cv}
             </button>
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-              <Button variant="ghost" size="sm" onClick={() => router.push('/app/candidates/' + r.cand.id)}>
+            {/* alignItems, or the buttons stretch to whatever height the
+                tallest cell in the row happens to be. */}
+            <div
+              style={{
+                display: 'flex',
+                gap: 6,
+                justifyContent: 'flex-end',
+                alignItems: 'center',
+              }}
+            >
+              {/* A transparent border of the same width the secondary button
+                  draws, so all three end up the same height. Without it the
+                  bordered one stands 4px taller than its neighbours. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push('/app/candidates/' + r.cand.id)}
+                style={{ border: '2px solid transparent' }}
+              >
                 View
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => toggleShortlist(r.cand)}>
+              {/* Fixed width so the column does not jog left and right as
+                  the label flips between Shortlist and Shortlisted. */}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => toggleShortlist(r.cand)}
+                style={{ minWidth: 104, justifyContent: 'center' }}
+              >
                 {r.shortLabel}
               </Button>
               {/* Moving someone forward is the action taken dozens of times a
@@ -410,6 +457,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ jobId: str
                 size="sm"
                 disabled={s.busy || !onPipeline(r.cand.stage)}
                 onClick={() => panelNext(r.cand)}
+                style={nextButtonStyle(r.cand.stage)}
               >
                 {nextLabel(r.cand.stage)}
               </Button>
